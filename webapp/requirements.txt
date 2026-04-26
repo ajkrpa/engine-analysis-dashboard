@@ -1,0 +1,5 @@
+# The dashboard in this folder is static (HTML, CSS, JavaScript only).
+# No Python packages are required to serve it.
+# This file is present so a deploy step that runs `pip install -r requirements.txt`
+# (e.g. with Root Directory set to `webapp`) does not error with "file not found".
+# Prefer a Render *Static Site* with Build command empty or `true` and no pip install.

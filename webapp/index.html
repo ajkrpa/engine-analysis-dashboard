@@ -24,6 +24,32 @@
         <h5>Timeseries</h5>
         <div id="timeseries-burn-time-message" class="mb-2 text-danger fw-semibold"></div>
         <div id="data-graph" class="plot-box"></div>
+        <div class="card p-3 mt-3">
+          <label class="fw-bold mb-2">Time controls</label>
+          <p class="small text-muted mb-2" id="time-range-noui-hint">Load a CSV to enable the time range slider (Dash-style).</p>
+          <div id="time-range-noui-wrap" class="d-none">
+            <div class="d-flex justify-content-between small text-muted instrument-label mb-1">
+              <span>Data min: <span id="time-range-data-min" class="text-white">—</span> s</span>
+              <span>Data max: <span id="time-range-data-max" class="text-white">—</span> s</span>
+            </div>
+            <div id="time-range-noui" class="noui-time-range mb-1" role="group" aria-label="Timeseries time window"></div>
+            <p class="small text-muted instrument-label mt-0 mb-2">Drag both handles, tap the track, or type values below.</p>
+          </div>
+          <div class="row g-2 align-items-center">
+            <div class="col-6 col-sm-4 col-md-3">
+              <label for="time-start" class="small">Start (s)</label>
+              <input id="time-start" type="number" class="form-control" step="any">
+            </div>
+            <div class="col-6 col-sm-4 col-md-3">
+              <label for="time-end" class="small">End (s)</label>
+              <input id="time-end" type="number" class="form-control" step="any">
+            </div>
+          </div>
+          <div class="mt-3">
+            <button id="reset-button" class="btn btn-primary btn-sm">Reset</button>
+            <button id="save-data-graph-btn" class="btn btn-outline-light btn-sm ms-2">Save timeseries image</button>
+          </div>
+        </div>
       </div>
       <div class="col-12 col-lg-4">
         <div class="card p-3 mb-3">
@@ -31,47 +57,15 @@
           <button id="clear-channels-button" class="btn btn-sm btn-outline-light mb-2">Clear channels</button>
           <div id="data-checklist" class="scroll-list"></div>
         </div>
-        <div class="row g-2 align-items-stretch">
-          <div class="col-12 col-sm-6 d-flex">
-            <div class="card p-3 w-100">
-              <h6>Analysis</h6>
-              <div class="form-check">
-                <input id="analysis-regression" class="form-check-input" type="checkbox">
-                <label for="analysis-regression" class="form-check-label">Regression</label>
-              </div>
-              <div class="form-check">
-                <input id="analysis-show-burn" class="form-check-input" type="checkbox">
-                <label for="analysis-show-burn" class="form-check-label">Show Burn Time</label>
-              </div>
-            </div>
+        <div class="card p-3">
+          <h6>Analysis</h6>
+          <div class="form-check">
+            <input id="analysis-regression" class="form-check-input" type="checkbox">
+            <label for="analysis-regression" class="form-check-label">Regression</label>
           </div>
-          <div class="col-12 col-sm-6 d-flex">
-            <div class="card p-3 w-100">
-              <label class="fw-bold mb-2">Time controls</label>
-              <p class="small text-muted mb-2" id="time-range-noui-hint">Load a CSV to enable the time range slider (Dash-style).</p>
-              <div id="time-range-noui-wrap" class="d-none">
-                <div class="d-flex justify-content-between small text-muted instrument-label mb-1">
-                  <span>Data min: <span id="time-range-data-min" class="text-white">—</span> s</span>
-                  <span>Data max: <span id="time-range-data-max" class="text-white">—</span> s</span>
-                </div>
-                <div id="time-range-noui" class="noui-time-range mb-1" role="group" aria-label="Timeseries time window"></div>
-                <p class="small text-muted instrument-label mt-0 mb-2">Drag both handles, tap the track, or type values below.</p>
-              </div>
-              <div class="row g-2 align-items-center">
-                <div class="col-6">
-                  <label for="time-start" class="small">Start (s)</label>
-                  <input id="time-start" type="number" class="form-control" step="any">
-                </div>
-                <div class="col-6">
-                  <label for="time-end" class="small">End (s)</label>
-                  <input id="time-end" type="number" class="form-control" step="any">
-                </div>
-              </div>
-              <div class="mt-3">
-                <button id="reset-button" class="btn btn-primary btn-sm">Reset</button>
-                <button id="save-data-graph-btn" class="btn btn-outline-light btn-sm ms-2">Save timeseries image</button>
-              </div>
-            </div>
+          <div class="form-check">
+            <input id="analysis-show-burn" class="form-check-input" type="checkbox">
+            <label for="analysis-show-burn" class="form-check-label">Show Burn Time</label>
           </div>
         </div>
       </div>

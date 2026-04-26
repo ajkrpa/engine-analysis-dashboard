@@ -1,5 +1,5 @@
-# Optional Blueprint: connect repo with "Apply render.yaml" or add a Static Site manually
-# and set Publish directory to  webapp  (and leave Build command empty or "true").
+# In Render: Build Command = `true` (or empty) — not `pip install` (this is a static site).
+# "Use render.yaml" in the Render dashboard to apply these values.
 
 services:
   - type: web
