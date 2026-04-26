@@ -1,0 +1,585 @@
+/**
+ * ROCKET HOT FIRE ANALYSIS DASHBOARD — Design System
+ * =====================================================
+ * Dark Tech / aerospace telemetry — high contrast, glass panels, instrument labels.
+ *
+ * --color-bg: Main viewport background (deep matte black)
+ * --color-surface: Cards, panels, inline containers (charcoal)
+ * --color-border: Hairline frame around surfaces (subtle definition)
+ * --color-accent: Primary data emphasis, focus rings, key chart strokes
+ * --color-text: Primary copy (headings, values)
+ * --color-text-muted: Units, axis labels, secondary metadata
+ * --color-success: Nominal / healthy / "go" (tank in spec, system ready)
+ * --color-warning: Caution, approaching limits, attention
+ * --color-danger: Abort, fault, or hard limits
+ * --radius-ui: Consistent "soft tech" corner radius (cards, buttons, inputs)
+ * --font-mono: Telemetry / monospaced stack for readouts
+ * --font-sans: UI sans for optional mixed use
+ * --label-tracking: Slight letter-spacing for instrument-panel labels (uppercase)
+ * --shadow-glow-*: Subtle focus/hover halos (avoid harsh flat color flips)
+ * --glass-blur: Backdrop strength for layered overlays
+ */
+
+/* ----------------------------------------------------------------------------- */
+/* Design tokens (single source of truth)                                       */
+/* ----------------------------------------------------------------------------- */
+
+:root {
+  --color-bg: #0a0a0a;
+  --color-surface: #161616;
+  --color-border: #2a2a2a;
+  --color-accent: #3b82f6;
+  --color-text: #ffffff;
+  --color-text-muted: #94a3b8;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-danger: #ef4444;
+
+  --radius-ui: 12px;
+
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", "Roboto Mono", "Consolas", ui-monospace, monospace;
+
+  --label-tracking: 0.08em;
+
+  --shadow-glow-accent: 0 0 0 1px rgba(59, 130, 246, 0.35), 0 0 20px rgba(59, 130, 246, 0.25);
+  --shadow-glow-success: 0 0 0 1px rgba(16, 185, 129, 0.35), 0 0 18px rgba(16, 185, 129, 0.22);
+  --shadow-glow-warning: 0 0 0 1px rgba(245, 158, 11, 0.4), 0 0 18px rgba(245, 158, 11, 0.2);
+  --shadow-glow-danger: 0 0 0 1px rgba(239, 68, 68, 0.4), 0 0 20px rgba(239, 68, 68, 0.22);
+
+  --glass-blur: 8px;
+  --glass-surface: rgba(22, 22, 22, 0.65);
+  --gradient-surface: linear-gradient(
+    160deg,
+    rgba(40, 40, 40, 0.22) 0%,
+    rgba(10, 10, 10, 0) 50%
+  );
+}
+
+/* ----------------------------------------------------------------------------- */
+/* Base & typography                                                            */
+/* ----------------------------------------------------------------------------- */
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+}
+
+.dashboard-hotfire,
+.dashboard-theme-container {
+  background-color: var(--color-bg);
+  background-image: radial-gradient(1200px 600px at 10% 0%, rgba(59, 130, 246, 0.06) 0%, transparent 50%),
+    radial-gradient(900px 500px at 100% 20%, rgba(16, 185, 129, 0.04) 0%, transparent 45%);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+.dashboard-theme-container {
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+p,
+li {
+  color: var(--color-text-muted);
+}
+
+/* Instrument-style labels: uppercase + tracking (apply to small caps metadata) */
+.instrument-label,
+label.panel-label,
+.telemetry-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: var(--label-tracking);
+  line-height: 1.2;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.telemetry-value {
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.telemetry-unit {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-left: 0.25rem;
+}
+
+/* ----------------------------------------------------------------------------- */
+/* Surfaces: cards, panels, soft-tech chrome                                    */
+/* ----------------------------------------------------------------------------- */
+
+.hotfire-card,
+.panel-surface {
+  position: relative;
+  border-radius: var(--radius-ui);
+  background-color: var(--color-surface);
+  background-image: var(--gradient-surface);
+  border: 1px solid var(--color-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.hotfire-card--accent {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 0 0 1px rgba(59, 130, 246, 0.12);
+}
+
+/* ----------------------------------------------------------------------------- */
+/* Telemetry grid: modular data tiles                                            */
+/* ----------------------------------------------------------------------------- */
+
+.telemetry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 0.75rem;
+  align-content: start;
+}
+
+.telemetry-tile {
+  border-radius: var(--radius-ui);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  padding: 0.75rem 0.9rem;
+  min-height: 4.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+/* ----------------------------------------------------------------------------- */
+/* Status pills: READY / IGNITION / ABORT                                        */
+/* ----------------------------------------------------------------------------- */
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 9999px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: var(--label-tracking);
+  line-height: 1;
+  text-transform: uppercase;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+/* Default / idle — neutral plate */
+.status-pill--ready {
+  color: var(--color-success);
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.35);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.12);
+}
+
+/* Hot / active — accent ring */
+.status-pill--ignition {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.12);
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.2);
+}
+
+/* Non-go — critical */
+.status-pill--abort {
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.45);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.18);
+}
+
+/* Optional dot indicator (markup: <span class="status-pill__dot" aria-hidden="true"></span>) */
+.status-pill__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* ----------------------------------------------------------------------------- */
+/* Buttons: glow on hover, minimal hue shift                                    */
+/* ----------------------------------------------------------------------------- */
+
+.btn-hotfire {
+  appearance: none;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  border-radius: var(--radius-ui);
+  padding: 0.5rem 1rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  transition: box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+}
+
+.btn-hotfire:hover {
+  border-color: rgba(59, 130, 246, 0.5);
+  box-shadow: var(--shadow-glow-accent);
+  background: #1a1a1a;
+}
+
+.btn-hotfire:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.btn-hotfire--primary {
+  color: #fff;
+  background: linear-gradient(180deg, #2563eb 0%, #1d4ed8 100%);
+  border-color: rgba(59, 130, 246, 0.6);
+}
+
+.btn-hotfire--primary:hover {
+  box-shadow: var(--shadow-glow-accent);
+  border-color: rgba(96, 165, 250, 0.85);
+  filter: brightness(1.04);
+}
+
+/* ----------------------------------------------------------------------------- */
+/* Data visualization: line series (high contrast, 2px stroke)                  */
+/* ----------------------------------------------------------------------------- */
+
+.chart-line-series {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 2px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+  shape-rendering: geometricPrecision;
+}
+
+.chart-line-series--success {
+  stroke: var(--color-success);
+}
+
+.chart-line-series--warning {
+  stroke: var(--color-warning);
+}
+
+.chart-line-series--danger {
+  stroke: var(--color-danger);
+}
+
+/* Axes / grid for dark SVG or canvas companion styling */
+.chart-axis line,
+.chart-grid line {
+  stroke: var(--color-border);
+  stroke-width: 1px;
+  shape-rendering: crispEdges;
+}
+
+.chart-axis text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ----------------------------------------------------------------------------- */
+/* Circular gauge: tank pressure, T–minus, completion                           */
+/* ----------------------------------------------------------------------------- */
+
+.gauge-ring {
+  --gauge-pct: 0.72;
+  display: block;
+  width: 120px;
+  height: 120px;
+}
+
+.gauge-ring__svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.gauge-ring__track {
+  fill: none;
+  stroke: #222;
+  stroke-width: 8;
+}
+
+/* Progress arc: stroke-dasharray = circumference; animate dashoffset in JS for live values */
+.gauge-ring__value {
+  fill: none;
+  stroke: var(--color-accent);
+  stroke-width: 8;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  /* Circumference for r=48 ≈ 301.59 — override per implementation */
+  stroke-dasharray: 301.59;
+  stroke-dashoffset: calc(301.59 * (1 - var(--gauge-pct)));
+  transition: stroke-dashoffset 0.35s ease, stroke 0.2s ease;
+}
+
+.gauge-ring__value--success {
+  stroke: var(--color-success);
+}
+
+.gauge-ring__value--warning {
+  stroke: var(--color-warning);
+}
+
+.gauge-ring__value--danger {
+  stroke: var(--color-danger);
+}
+
+.gauge-ring__label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  letter-spacing: var(--label-tracking);
+  text-transform: uppercase;
+  fill: var(--color-text-muted);
+  text-anchor: middle;
+}
+
+.gauge-ring__value-text {
+  font-family: var(--font-mono);
+  font-size: 1.25rem;
+  font-weight: 600;
+  fill: var(--color-text);
+  text-anchor: middle;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------------------------------- */
+/* Glass: modals, dropdowns, popovers                                         */
+/* ----------------------------------------------------------------------------- */
+
+.glass-panel,
+.modal-hotfire .modal-content,
+.dropdown-menu-hotfire {
+  border-radius: var(--radius-ui);
+  background: var(--glass-surface);
+  border: 1px solid var(--color-border);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+/* Bootstrap modal backdrop pairing */
+.modal-hotfire .modal-backdrop {
+  --bs-backdrop-bg: #050505;
+  --bs-backdrop-opacity: 0.72;
+}
+
+/* ----------------------------------------------------------------------------- */
+/* Form elements tuned for dark tech                                            */
+/* ----------------------------------------------------------------------------- */
+
+.input-hotfire,
+select.input-hotfire,
+textarea.input-hotfire {
+  border-radius: var(--radius-ui);
+  background: #111;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+}
+
+.input-hotfire:focus {
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3);
+  outline: none;
+}
+
+.input-hotfire::placeholder {
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+}
+
+/* ----------------------------------------------------------------------------- */
+/* Helper utilities                                                              */
+/* ----------------------------------------------------------------------------- */
+
+.text-muted-hotfire {
+  color: var(--color-text-muted) !important;
+}
+
+.accent {
+  color: var(--color-accent);
+}
+
+.sr-only-hotfire {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+/* ----------------------------------------------------------------------------- */
+/* App + Bootstrap: dashboard uses Plotly, forms, cards (was styles.css)        */
+/* ----------------------------------------------------------------------------- */
+
+.dashboard-theme-container .text-muted,
+.dashboard-hotfire .text-muted {
+  color: var(--color-text-muted) !important;
+}
+
+.dashboard-theme-container .card,
+.dashboard-hotfire .card {
+  background-color: var(--color-surface);
+  background-image: var(--gradient-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-ui);
+  color: var(--color-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.dashboard-theme-container .form-control,
+.dashboard-theme-container .form-select,
+.dashboard-hotfire .form-control,
+.dashboard-hotfire .form-select {
+  background-color: #111;
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-ui);
+}
+
+.dashboard-theme-container .form-control:focus,
+.dashboard-theme-container .form-select:focus,
+.dashboard-hotfire .form-control:focus,
+.dashboard-hotfire .form-select:focus {
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3);
+  background-color: #111;
+  color: var(--color-text);
+}
+
+.plot-box {
+  width: 100%;
+  min-height: 540px;
+  height: 540px;
+  background: #0d0d0d;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-ui);
+}
+
+.scroll-list {
+  max-height: 500px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-ui);
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.scroll-list .form-check {
+  margin-bottom: 0.35rem;
+}
+
+.info-box {
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-ui);
+  padding: 0.45rem 0.6rem;
+  font-size: 0.9rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.dashboard-theme-container hr,
+.dashboard-hotfire hr {
+  border-color: var(--color-border);
+  opacity: 1;
+}
+
+#thrust-channels-picker > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+#thrust-channels-picker > summary::-webkit-details-marker {
+  display: none;
+}
+
+#thrust-channels-picker[open] > summary {
+  border-color: rgba(59, 130, 246, 0.55);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3);
+}
+
+/* noUiSlider — Dash-style range slider, matches dashboard theme */
+.noui-time-range {
+  max-width: 100%;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0 0.5rem 0.25rem;
+}
+
+#time-range-noui,
+#analysis-time-range-noui {
+  min-height: 1.5rem;
+  background: #111;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-ui);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+#time-range-noui .noUi-connect,
+#analysis-time-range-noui .noUi-connect {
+  background: linear-gradient(90deg, #1d4ed8, #3b82f6);
+  border-radius: 2px;
+}
+
+#time-range-noui .noUi-handle,
+#analysis-time-range-noui .noUi-handle {
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 4px;
+  right: -0.55rem;
+  top: -0.2rem;
+  background: #1e3a5f;
+  border: 1px solid rgba(59, 130, 246, 0.6);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.35);
+  cursor: grab;
+}
+
+#time-range-noui .noUi-handle:active,
+#analysis-time-range-noui .noUi-handle:active {
+  cursor: grabbing;
+}
+
+#time-range-noui .noUi-handle::before,
+#time-range-noui .noUi-handle::after,
+#analysis-time-range-noui .noUi-handle::before,
+#analysis-time-range-noui .noUi-handle::after {
+  display: none;
+}
+
+#time-range-noui.noUi-horizontal,
+#analysis-time-range-noui.noUi-horizontal {
+  height: 0.4rem;
+}

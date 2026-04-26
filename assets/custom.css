@@ -1,0 +1,15 @@
+/* Selected channel text in analysis dropdowns: black for visibility */
+.analysis-channel-dropdown .Select-value-label,
+.analysis-channel-dropdown .Select-value,
+.analysis-channel-dropdown .Select-value span,
+.analysis-channel-dropdown .Select-input,
+.analysis-channel-dropdown input,
+.analysis-channel-dropdown [class*="singleValue"],
+.analysis-channel-dropdown [class*="multiValue"],
+.analysis-channel-dropdown [class*="multiValueLabel"] {
+  color: #000 !important;
+}
+
+.analysis-channel-dropdown .Select-placeholder {
+  color: #666 !important;
+}

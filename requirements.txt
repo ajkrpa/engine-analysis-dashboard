@@ -1,0 +1,10 @@
+# Run: pip install -r requirements.txt
+# To upgrade Dash/Plotly: pip install --upgrade dash plotly dash-bootstrap-components
+# (If you get "Access denied", close the app/IDE and run the command in a new terminal, or use: pip install --user --upgrade dash plotly)
+dash>=4.0.0
+dash-bootstrap-components>=2.0.0
+numpy
+pandas
+plotly>=6.0.0
+kaleido
+scipy

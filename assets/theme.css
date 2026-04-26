@@ -1,0 +1,173 @@
+/*
+ * Dashboard theme (CYBORG-style dark theme)
+ * Use these variables and classes to keep the app consistent.
+ */
+
+/* ============ CSS variables (theme tokens) ============ */
+:root {
+  /* Backgrounds */
+  --theme-bg-dark: #222222;
+  --theme-bg-card: #2b3e50;
+  --theme-bg-input: #2b3e50;
+
+  /* Text */
+  --theme-text-primary: #ffffff;
+  --theme-text-muted: #adb5bd;
+  --theme-text-label: #ffffff;
+
+  /* Borders & dividers */
+  --theme-border: #4a6fa5;
+  --theme-border-subtle: rgba(255, 255, 255, 0.12);
+  --theme-border-upload: dashed 1px rgba(255, 255, 255, 0.3);
+
+  /* Accents (buttons, links, slider) */
+  --theme-accent: #df691a;
+  --theme-accent-hover: #e87d2f;
+  --theme-highlight: rgba(100, 149, 237, 0.25);
+
+  /* Layout */
+  --theme-layout-max-width: 1400px;
+  --theme-layout-padding: 0.25rem;
+  --theme-layout-border: 1px solid var(--theme-border-subtle);
+}
+
+/* ============ Main layout container ============ */
+.dashboard-theme-container {
+  max-width: var(--theme-layout-max-width);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--theme-layout-padding);
+  padding-right: var(--theme-layout-padding);
+  border-left: var(--theme-layout-border);
+  border-right: var(--theme-layout-border);
+  min-height: 100vh;
+}
+
+/* ============ Typography & labels ============ */
+.form-label.fw-bold,
+.form-label.fw-bold.mb-0,
+[class*="form-label"] {
+  color: var(--theme-text-label);
+}
+
+.text-muted {
+  color: var(--theme-text-muted) !important;
+}
+
+/* Section headers */
+h1, h4, h5 {
+  color: var(--theme-text-primary);
+}
+
+/* ============ Cards ============ */
+.card {
+  background-color: var(--theme-bg-card);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.card-header {
+  background-color: rgba(0, 0, 0, 0.2);
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+  color: var(--theme-text-primary);
+}
+
+.card-body {
+  color: var(--theme-text-primary);
+}
+
+/* ============ Inputs & dropdowns ============ */
+.dcc.Input,
+input[type="number"],
+input[type="text"] {
+  background-color: var(--theme-bg-input) !important;
+  color: var(--theme-text-primary) !important;
+  border: 1px solid var(--theme-border) !important;
+}
+
+.dcc.Input::placeholder,
+input::placeholder {
+  color: var(--theme-text-muted);
+}
+
+/* Dropdowns (Dash/React Select) */
+.VirtualizedSelectFocusedOption,
+.Select-menu-outer,
+.Select-control {
+  background-color: var(--theme-bg-input) !important;
+  border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+}
+
+.Select-input > input,
+.Select-value-label {
+  color: var(--theme-text-primary) !important;
+}
+
+/* ============ Upload zone ============ */
+[id="upload-data"] {
+  width: 100%;
+  min-height: 60px;
+  line-height: 60px;
+  border: var(--theme-border-upload);
+  border-radius: 8px;
+  text-align: center;
+  cursor: pointer;
+  color: var(--theme-text-muted);
+}
+
+[id="upload-data"]:hover {
+  border-color: var(--theme-border);
+  color: var(--theme-text-primary);
+}
+
+/* ============ Slider marks (time range) ============ */
+.rc-slider-mark-text {
+  color: var(--theme-text-muted);
+}
+
+/* ============ Checklist / labels ============ */
+label {
+  color: var(--theme-text-label);
+}
+
+/* Accordion (analysis controls) */
+.accordion-button,
+.accordion-item {
+  background-color: var(--theme-bg-card);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--theme-text-primary);
+}
+
+.accordion-button:not(.collapsed) {
+  background-color: rgba(0, 0, 0, 0.25);
+  color: var(--theme-text-primary);
+}
+
+.accordion-button:focus {
+  box-shadow: 0 0 0 0.25rem rgba(223, 105, 26, 0.25);
+  border-color: var(--theme-accent);
+}
+
+/* ============ Utility: panel / info boxes ============ */
+.p-2.border.rounded {
+  background-color: var(--theme-bg-input);
+  color: var(--theme-text-primary);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ============ Modals ============ */
+.modal-content {
+  background-color: var(--theme-bg-card);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: var(--theme-text-primary);
+}
+
+.modal-header,
+.modal-footer {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.modal-body .form-label,
+.modal-body label {
+  color: var(--theme-text-label);
+}
