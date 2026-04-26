@@ -84,6 +84,42 @@ function nouiStartFromMergedAndInputs(merged, inputStartId, inputEndId) {
   return { tMin, tMax, rangeMin, rangeMax, step: timeStepForNoui(rangeMin, rangeMax), s0, s1 };
 }
 
+/**
+ * Start/end time (s) of the longest run where venturi ṁ (kg/s) is ≥ 10% of the series peak
+ * (consecutive samples in time order). No venturi / all NaN → [NaN, NaN].
+ */
+function detectVenturiMdotActiveWindow(mdotArr, tArr) {
+  const n = mdotArr.length;
+  if (!n || n !== tArr.length) return [NaN, NaN];
+  const peak = Math.max(
+    -Infinity,
+    ...mdotArr.map((m) => (Number.isFinite(m) && m > 0 ? m : -Infinity)),
+  );
+  if (!Number.isFinite(peak) || peak <= 0) return [NaN, NaN];
+  const thr = 0.1 * peak;
+  let bestLo = 0;
+  let bestLen = 0;
+  let i = 0;
+  while (i < n) {
+    if (!Number.isFinite(mdotArr[i]) || mdotArr[i] < thr || !Number.isFinite(tArr[i])) {
+      i += 1;
+      continue;
+    }
+    const j0 = i;
+    let j = i;
+    while (j < n && Number.isFinite(mdotArr[j]) && mdotArr[j] >= thr && Number.isFinite(tArr[j])) {
+      j += 1;
+    }
+    if (j - j0 > bestLen) {
+      bestLen = j - j0;
+      bestLo = j0;
+    }
+    i = j;
+  }
+  if (bestLen === 0) return [NaN, NaN];
+  return [tArr[bestLo], tArr[bestLo + bestLen - 1]];
+}
+
 function destroyNouiIfExists(el) {
   if (el && el.noUiSlider) el.noUiSlider.destroy();
 }
@@ -193,7 +229,7 @@ const DASH_CONFIG_INPUT_IDS = [
   "time-start", "time-end", "analysis-time-start", "analysis-time-end",
 ];
 const DASH_CONFIG_CHECKBOX_IDS = [
-  "venturi-use-mdot", "analysis-regression", "analysis-show-burn",
+  "analysis-regression", "analysis-show-burn",
 ];
 const DASH_CONFIG_SELECT_IDS = [
   "chamber-pressure-select", "fuel-weight-select", "ox-weight-select",
@@ -207,8 +243,6 @@ const state = {
   selectedThrustChannels: [],
   perf: null,
   perfMeta: null,
-  /** Filled in computePerformance for diagnostics (why Isp/venturi are all NaN) */
-  lastComputeDebug: null,
   /** Last parsed localStorage dashboard config; used when CSV loads */
   pendingDashConfig: null,
 };
@@ -507,64 +541,18 @@ function drawTimeseries() {
   Plotly.newPlot("data-graph", traces, layout, PLOT_CONFIG);
 }
 
-function venturiParamLine(label, p1, p2, rho, cda, beta, rows) {
-  const parts = [];
-  if (!p1 || !p2) {
-    parts.push("select both inlet and throat");
-    return `${label}: ${parts.join(" · ")}`;
-  }
-  if (!Number.isFinite(rho) || rho <= 0) parts.push("ρ missing or ≤0 (kg/m³)");
-  if (!Number.isFinite(cda) || cda <= 0) parts.push("C_d A missing or ≤0 (m²)");
-  if (!Number.isFinite(beta) || beta <= 0 || beta >= 1) parts.push("β must be in (0,1) (throat/inlet size ratio)");
-  if (rows?.length) {
-    const a = toNumber(rows[0][p1]);
-    const b = toNumber(rows[0][p2]);
-    if (!Number.isFinite(a) || !Number.isFinite(b)) {
-      parts.push(`first-row pressures not numeric (got ${p1}=${String(rows[0][p1])?.slice(0, 20)}, ${p2}=… — remove commas in CSV or fix column names)`);
-    }
-  }
-  if (!parts.length) return `${label}: inputs look OK (if still all NaN, check every row has valid P1,P2,β in range)`;
-  return `${label}: ${parts.join(" · ")}`;
-}
-
-function updatePerfDiagnostics(perf) {
-  const el = $("analysis-perf-diagnostics");
-  if (!el) return;
-  if (!perf?.length) {
-    el.textContent = "";
+function updateMdotDisplays(meta) {
+  const dash = "—";
+  if (!meta) {
+    ["analysis-burn-time-display", "analysis-fuel-flow-time-display", "analysis-ox-flow-time-display"].forEach(
+      (id) => { const el = $(id); if (el) el.textContent = dash; },
+    );
     return;
   }
-  const n = perf.length;
-  const kIsp = "Isp (s)";
-  const kC = "C* (m/s)";
-  const kVf = "Venturi fuel mdot (kg/s)";
-  const kVo = "Venturi ox mdot (kg/s)";
-  const nI = perf.filter((r) => Number.isFinite(toNumber(r[kIsp]))).length;
-  const nC = perf.filter((r) => Number.isFinite(toNumber(r[kC]))).length;
-  const nVf = perf.filter((r) => Number.isFinite(toNumber(r[kVf]))).length;
-  const nVo = perf.filter((r) => Number.isFinite(toNumber(r[kVo]))).length;
-  const d = state.lastComputeDebug;
-  const mdotBlock = d
-    ? (d.useVenturi
-      ? " mdot for Isp/C* uses venturi per point with tank fallbacks. "
-      : " mdot for Isp/C* = fuel+ox from tank weight slopes (constant) — if that sum is 0, Isp is all NaN. ")
-    + (d.mDotScalar <= 0 && !d.useVenturi
-      ? ` Tank mdot (kg/s) = ${(d.mDotFuelKg + d.mDotOxKg).toExponential(2)}. Pick fuel+ox weight channels and flow. `
-      : ` Tank mdot components (kg/s) fuel ${Number.isFinite(d.mDotFuelKg) ? d.mDotFuelKg.toExponential(2) : "n/a"} + ox ${Number.isFinite(d.mDotOxKg) ? d.mDotOxKg.toExponential(2) : "n/a"}. `)
-    : "";
-  const ventBlock = d
-    ? `${venturiParamLine("Fuel venturi", d.vf1, d.vf2, d.vfRho, d.vfCda, d.vfBeta, state.dataset?.rows)} · ${venturiParamLine("Ox venturi", d.vo1, d.vo2, d.voRho, d.voCda, d.voBeta, state.dataset?.rows)}`
-    : "";
-  const cstarBlock = d && (!d.chamber || !(Number.isFinite(d.Astar) && d.Astar > 0)) ? " C* also needs chamber channel + A* (m²). " : " ";
-  el.textContent = `Finite points: Isp ${nI}/${n} · C* ${nC}/${n} · Venturi fuel ${nVf}/${n} · Venturi ox ${nVo}/${n}. ${mdotBlock}${cstarBlock}Details: ${ventBlock}`;
-}
-
-function updateMdotDisplays(meta) {
-  $("analysis-mdot-fuel-display").textContent = Number.isFinite(meta.mDotFuel) ? meta.mDotFuel.toFixed(4) : "—";
-  $("analysis-mdot-ox-display").textContent = Number.isFinite(meta.mDotOx) ? meta.mDotOx.toFixed(4) : "—";
-  $("analysis-burn-time-display").textContent = Number.isFinite(meta.burnStart) && Number.isFinite(meta.burnEnd) ? (meta.burnEnd - meta.burnStart).toFixed(3) : "—";
-  $("analysis-ox-flow-time-display").textContent = Number.isFinite(meta.oxStart) && Number.isFinite(meta.oxEnd) ? (meta.oxEnd - meta.oxStart).toFixed(3) : "—";
-  $("analysis-fuel-flow-time-display").textContent = Number.isFinite(meta.fuelStart) && Number.isFinite(meta.fuelEnd) ? (meta.fuelEnd - meta.fuelStart).toFixed(3) : "—";
+  const spanS = (t0, t1) => (Number.isFinite(t0) && Number.isFinite(t1) && t1 >= t0 ? (t1 - t0).toFixed(3) : dash);
+  $("analysis-burn-time-display").textContent = Number.isFinite(meta.burnStart) && Number.isFinite(meta.burnEnd) ? (meta.burnEnd - meta.burnStart).toFixed(3) : dash;
+  $("analysis-fuel-flow-time-display").textContent = spanS(meta.venturiFuelFlowStart, meta.venturiFuelFlowEnd);
+  $("analysis-ox-flow-time-display").textContent = spanS(meta.venturiOxFlowStart, meta.venturiOxFlowEnd);
 }
 
 function getAnalysisHintEl() {
@@ -622,7 +610,6 @@ function computePerformance(opts = {}) {
   const mDotOx = Number.isFinite(sOx) ? Math.abs(sOx) : NaN;
   const mDotFuelKg = Number.isFinite(mDotFuel) ? (mDotFuel / G0_FT_S2) * LBM_TO_KG : 0;
   const mDotOxKg = Number.isFinite(mDotOx) ? (mDotOx / G0_FT_S2) * LBM_TO_KG : 0;
-  const mDotScalar = mDotFuelKg + mDotOxKg;
 
   const vf1 = $("venturi-fuel-inlet-select").value;
   const vf2 = $("venturi-fuel-throat-select").value;
@@ -638,10 +625,16 @@ function computePerformance(opts = {}) {
   const ventFuel = computeVenturiMdot(rows, vf1, vf2, vfRho, vfCda, vfBeta);
   // Oxidizer line: ox channels, ox rho, ox C_dA, ox β only — no fuel values
   const ventOx = computeVenturiMdot(rows, vo1, vo2, voRho, voCda, voBeta);
-  const useVenturi = $("venturi-use-mdot").checked;
-  /** For Isp and C* only: venturi inst. mdot when available, else tank-based kg/s. */
-  const mdotFromVentOrTank = (i) => (Number.isFinite(ventFuel[i]) ? ventFuel[i] : mDotFuelKg) + (Number.isFinite(ventOx[i]) ? ventOx[i] : mDotOxKg);
-  /** Inst. ṁ_ox/ṁ_fuel: venturi value when available for that stream, else tank-based kg/s (same as Isp mdot). */
+  const tAll = rows.map((r) => r["Time (s)"]);
+  const [venturiFuelFlowStart, venturiFuelFlowEnd] = detectVenturiMdotActiveWindow(ventFuel, tAll);
+  const [venturiOxFlowStart, venturiOxFlowEnd] = detectVenturiMdotActiveWindow(ventOx, tAll);
+  /** Isp/C* use total ṁ = fuel venturi + ox venturi (kg/s); missing side treated as 0. */
+  const totalVenturiMdotKg = (i) => {
+    const f = Number.isFinite(ventFuel[i]) ? ventFuel[i] : 0;
+    const o = Number.isFinite(ventOx[i]) ? ventOx[i] : 0;
+    return f + o;
+  };
+  /** Inst. ṁ_ox/ṁ_fuel: venturi value when available for that stream, else tank-based kg/s. */
   const ofRatio = (i) => {
     const mf = Number.isFinite(ventFuel[i]) ? ventFuel[i] : mDotFuelKg;
     const mo = Number.isFinite(ventOx[i]) ? ventOx[i] : mDotOxKg;
@@ -654,7 +647,7 @@ function computePerformance(opts = {}) {
     const thrustN = thrustLbf * LBF_TO_N;
     const pcPsi = chamber ? toNumber(r[chamber]) : NaN;
     const pcPa = Number.isFinite(pcPsi) ? pcPsi * PSI_TO_PA : NaN;
-    const mdotTot = useVenturi ? mdotFromVentOrTank(i) : mDotScalar;
+    const mdotTot = totalVenturiMdotKg(i);
     return {
       "Time (s)": r["Time (s)"],
       "Total thrust (lbf)": thrustLbf,
@@ -667,19 +660,11 @@ function computePerformance(opts = {}) {
       "Burn time": burnDurationS,
     };
   });
-  state.perfMeta = { mDotFuel, mDotOx, burnStart, burnEnd, fuelStart, fuelEnd, oxStart, oxEnd };
-  state.lastComputeDebug = {
-    mDotScalar,
-    mDotFuelKg,
-    mDotOxKg,
-    useVenturi,
-    chamber: chamber || "",
-    Astar,
-    vf1, vf2, vfRho, vfCda, vfBeta,
-    vo1, vo2, voRho, voCda, voBeta,
+  state.perfMeta = {
+    mDotFuel, mDotOx, burnStart, burnEnd,
+    venturiFuelFlowStart, venturiFuelFlowEnd, venturiOxFlowStart, venturiOxFlowEnd,
   };
   updateMdotDisplays(state.perfMeta);
-  updatePerfDiagnostics(state.perf);
   drawAnalysisGraph();
 }
 
@@ -890,9 +875,8 @@ function bindEvents() {
     state.dataset = merged;
     state.perf = null;
     state.perfMeta = null;
-    state.lastComputeDebug = null;
     if (getAnalysisHintEl()) getAnalysisHintEl().textContent = "";
-    updatePerfDiagnostics(null);
+    updateMdotDisplays(null);
     const { tMin, tMax } = merged;
     const tPair = mergeSavedTimeOnUpload(pre, "time-start", "time-end", tMin, tMax);
     const aPair = mergeSavedTimeOnUpload(pre, "analysis-time-start", "analysis-time-end", tMin, tMax);
@@ -981,7 +965,6 @@ function bindEvents() {
   $("save-data-graph-btn").addEventListener("click", () => downloadPlot("data-graph", "timeseries"));
   $("save-analysis-graph-btn").addEventListener("click", () => downloadPlot("analysis-graph", "performance_analysis"));
 
-  $("venturi-use-mdot").addEventListener("change", () => { maybeRecomputeAnalysis(); scheduleConfigSave(); });
   [
     "input-throat-area",
     "chamber-pressure-select",

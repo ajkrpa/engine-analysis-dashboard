@@ -34,18 +34,17 @@ The main version runs **in your web browser**. You do **not** need to install an
 
 ### 2. Performance analysis (second section)
 
-At the top you will see summary numbers (for example tank weight slopes, burn time, fuel/ox flow times) **after you run Calculate** (below).
+At the top you will see summary numbers (detected **burn** time, and **fuel/ox venturi active** times derived from the venturi mass-flow series) **after you run Calculate** (below).
 
 - **Analysis time range:** Same idea as timeseries — slider and start/end times limit which part of the run is used for the **performance** plot and metrics.
 - **Inputs**
   - **A\*** — Throat area in **m²** (used for `C*` and related terms).
   - **Thrust channels (lbf):** Open the list and check one or more load channels; their values are **added** to form total thrust.
   - **Chamber pressure (psi)** and **fuel / oxidizer tank weight (lbf)** — choose the matching columns from your data.
-  - **Use venturis to compute mass flow rate (`Isp`, `C*`):** When **off**, mass flow for `Isp` / `C*` comes from **tank weight slopes** (fuel and ox lines). When **on**, the tool prefers **venturi** mass flow when those points are valid, and falls back to the tank slope for a stream if needed.  
-  - Fuel and oxidizer **flow time windows** for the tank-weight method are **detected automatically** from the weight channels you selected.
-- **Venturi** (optional): For each propellant line, enter fluid **density**, pick **inlet** and **throat** pressure channels, and enter **C<sub>d</sub>A** and **β** (throat-to-inlet diameter ratio) as needed. Fuel and ox are **independent**.
+  - **`Isp` and `C*`:** Total mass flow is **fuel venturi ṁ + oxidizer venturi ṁ** (kg/s) on each time row. Configure both lines under **Venturi** (or one side only; the other counts as 0 if that row’s venturi ṁ is missing).
+- **Venturi** (optional): For each propellant line, enter fluid **density**, pick **inlet** and **throat** pressure channels, and enter **C<sub>d</sub>A** and **β** (throat-to-inlet diameter ratio) as needed. Fuel and ox are **independent**. Tank weight columns are still used for **O/F** when venturi data is missing for a side.
 - **Plot Metrics:** Check which curves you want on the performance plot (`Isp`, `C*`, venturi mass flow, `O/F`, burn time, etc.).
-- Click **Calculate** to refresh the performance plot and the summary numbers. If something is missing (channels, area, pressure), hints or diagnostics may appear under the button.
+- Click **Calculate** to refresh the performance plot and the summary numbers. If something is wrong with inputs, a short hint may appear under the button.
 - **Save analysis image** downloads a PNG of the performance plot.
 
 ---
