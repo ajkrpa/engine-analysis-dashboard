@@ -279,54 +279,10 @@ analysis_tabs_container = dbc.Card(
                                     "backgroundColor": "#2b3e50",
                                 },
                             ),
-                            dbc.Label("Flow time source", className="fw-bold mt-2"),
-                            dcc.Checklist(
-                                id="analysis-flow-detect-checklist",
-                                options=[{"label": "Detect", "value": "detect"}],
-                                value=["detect"],
-                                labelStyle={"color": "white"},
-                                style={"marginBottom": "8px"},
+                            html.P(
+                                "Fuel/ox flow windows for tank-weight slopes are detected automatically from the selected weight columns.",
+                                className="small text-muted",
                             ),
-                            dbc.Row([
-                                dbc.Col([
-                                    dbc.Label("Fuel flow start (s)", className="small"),
-                                    dcc.Input(
-                                        id="fuel-flow-start-input",
-                                        type="number",
-                                        placeholder="e.g. 1.25",
-                                        style={"width": "100%"},
-                                    ),
-                                ], width=6),
-                                dbc.Col([
-                                    dbc.Label("Fuel flow end (s)", className="small"),
-                                    dcc.Input(
-                                        id="fuel-flow-end-input",
-                                        type="number",
-                                        placeholder="e.g. 5.40",
-                                        style={"width": "100%"},
-                                    ),
-                                ], width=6),
-                            ], className="g-2 mb-2"),
-                            dbc.Row([
-                                dbc.Col([
-                                    dbc.Label("Ox flow start (s)", className="small"),
-                                    dcc.Input(
-                                        id="ox-flow-start-input",
-                                        type="number",
-                                        placeholder="e.g. 1.30",
-                                        style={"width": "100%"},
-                                    ),
-                                ], width=6),
-                                dbc.Col([
-                                    dbc.Label("Ox flow end (s)", className="small"),
-                                    dcc.Input(
-                                        id="ox-flow-end-input",
-                                        type="number",
-                                        placeholder="e.g. 5.55",
-                                        style={"width": "100%"},
-                                    ),
-                                ], width=6),
-                            ], className="g-2 mb-2"),
                             html.Div(dbc.Button("Calculate", id="analysis-calculate-button", color="primary", className="mt-3 w-100"), className="d-grid"),
                         ],
                     ),
@@ -942,11 +898,6 @@ def update_venturi_channel_options(store_data, user_has_uploaded):
     State("chamber-pressure-select", "value"),
     State("fuel-weight-select", "value"),
     State("ox-weight-select", "value"),
-    State("analysis-flow-detect-checklist", "value"),
-    State("fuel-flow-start-input", "value"),
-    State("fuel-flow-end-input", "value"),
-    State("ox-flow-start-input", "value"),
-    State("ox-flow-end-input", "value"),
     State("venturi-use-for-performance-checklist", "value"),
     State("venturi-fuel-rho-constant", "value"),
     State("venturi-ox-rho-constant", "value"),
@@ -962,7 +913,6 @@ def update_venturi_channel_options(store_data, user_has_uploaded):
 )
 def compute_and_store_analysis_perf(
     n_clicks, store_data, A_star, thrust_channels, chamber_pressure_col, fuel_weight_col, ox_weight_col,
-    flow_detect_mode, fuel_flow_start, fuel_flow_end, ox_flow_start, ox_flow_end,
     venturi_use_for_perf,
     venturi_fuel_rho_const,
     venturi_ox_rho_const,
@@ -987,31 +937,17 @@ def compute_and_store_analysis_perf(
             and np.isfinite(t_start) and np.isfinite(t_end)
             and float(t_end) > float(t_start)
         )
-    detect_flow = "detect" in (flow_detect_mode or [])
-
-    # 1) Flow windows: detect automatically or use user-entered values.
+    # 1) Flow windows from selected tank weight columns (automatic).
     fuel_flow_t_start, fuel_flow_t_end = np.nan, np.nan
     ox_flow_t_start, ox_flow_t_end = np.nan, np.nan
-    if detect_flow:
-        if fuel_weight_col and fuel_weight_col in df.columns:
-            fuel_flow_t_start, fuel_flow_t_end = get_burn_window_from_weight(
-                df, X_COL, fuel_weight_col, threshold_fraction=0.1
-            )
-        if ox_weight_col and ox_weight_col in df.columns:
-            ox_flow_t_start, ox_flow_t_end = get_burn_window_from_weight(
-                df, X_COL, ox_weight_col, threshold_fraction=0.1
-            )
-    else:
-        try:
-            fuel_flow_t_start = float(fuel_flow_start) if fuel_flow_start is not None else np.nan
-            fuel_flow_t_end = float(fuel_flow_end) if fuel_flow_end is not None else np.nan
-        except (TypeError, ValueError):
-            fuel_flow_t_start, fuel_flow_t_end = np.nan, np.nan
-        try:
-            ox_flow_t_start = float(ox_flow_start) if ox_flow_start is not None else np.nan
-            ox_flow_t_end = float(ox_flow_end) if ox_flow_end is not None else np.nan
-        except (TypeError, ValueError):
-            ox_flow_t_start, ox_flow_t_end = np.nan, np.nan
+    if fuel_weight_col and fuel_weight_col in df.columns:
+        fuel_flow_t_start, fuel_flow_t_end = get_burn_window_from_weight(
+            df, X_COL, fuel_weight_col, threshold_fraction=0.1
+        )
+    if ox_weight_col and ox_weight_col in df.columns:
+        ox_flow_t_start, ox_flow_t_end = get_burn_window_from_weight(
+            df, X_COL, ox_weight_col, threshold_fraction=0.1
+        )
     # Combined flow window used only for reference in store.
     flow_starts = [x for x in [fuel_flow_t_start, ox_flow_t_start] if np.isfinite(x)]
     flow_ends = [x for x in [fuel_flow_t_end, ox_flow_t_end] if np.isfinite(x)]

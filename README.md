@@ -49,6 +49,19 @@ The Dash app loads a default dataset from `data/1047_pt.csv` on startup until yo
 
 See `requirements.txt` (Dash, Plotly, pandas, numpy, scipy, kaleido, dash-bootstrap-components).
 
+## Render
+
+**Recommended:** create a **Static Site**, publish the **`webapp`** folder (no build, or `true`). You can use the root **`render.yaml`** in this repo (Blueprint) or in the dashboard set **Build command** to empty or `true` and **Publish directory** to `webapp`.
+
+**If you use a Web Service (Python / Dash) instead of static:** a bare `python app.py` often exits with **status 1** on Render because the app must listen on **`0.0.0.0`** and the **`PORT`** environment variable. This repo’s `app.py` does that in `if __name__ == "__main__"`. A more typical production start is gunicorn (Linux):
+
+```bash
+pip install gunicorn
+gunicorn app:server --bind 0.0.0.0:$PORT
+```
+
+Set **Start command** in Render to that (after a build that runs `pip install -r requirements.txt` and `pip install gunicorn`). The **“Exited with status 1”** line in the log is the outcome; the **real** error is usually a few lines **above** (import error, `Address already in use`, or `gunicorn: command not found`).
+
 ## GitHub
 
 Create an empty repository on GitHub, then from this folder:

@@ -190,11 +190,10 @@ const DASH_CONFIG_KEY = "rocketHotFireDashboardConfigV1";
 const DASH_CONFIG_INPUT_IDS = [
   "input-throat-area", "venturi-fuel-rho-constant", "venturi-ox-rho-constant",
   "venturi-fuel-cda", "venturi-fuel-beta", "venturi-ox-cda", "venturi-ox-beta",
-  "fuel-flow-start-input", "fuel-flow-end-input", "ox-flow-start-input", "ox-flow-end-input",
   "time-start", "time-end", "analysis-time-start", "analysis-time-end",
 ];
 const DASH_CONFIG_CHECKBOX_IDS = [
-  "venturi-use-mdot", "analysis-flow-detect", "analysis-regression", "analysis-show-burn",
+  "venturi-use-mdot", "analysis-regression", "analysis-show-burn",
 ];
 const DASH_CONFIG_SELECT_IDS = [
   "chamber-pressure-select", "fuel-weight-select", "ox-weight-select",
@@ -611,13 +610,8 @@ function computePerformance(opts = {}) {
   const burnEnd = burnMaskIdx.length ? rows[burnMaskIdx[burnMaskIdx.length - 1]]["Time (s)"] : NaN;
   const burnDurationS = Number.isFinite(burnStart) && Number.isFinite(burnEnd) ? burnEnd - burnStart : NaN;
 
-  const detect = $("analysis-flow-detect").checked;
-  let [fuelStart, fuelEnd] = [toNumber($("fuel-flow-start-input").value), toNumber($("fuel-flow-end-input").value)];
-  let [oxStart, oxEnd] = [toNumber($("ox-flow-start-input").value), toNumber($("ox-flow-end-input").value)];
-  if (detect) {
-    [fuelStart, fuelEnd] = fuelW ? detectBurnWindowFromWeight(rows, fuelW) : [NaN, NaN];
-    [oxStart, oxEnd] = oxW ? detectBurnWindowFromWeight(rows, oxW) : [NaN, NaN];
-  }
+  let [fuelStart, fuelEnd] = fuelW ? detectBurnWindowFromWeight(rows, fuelW) : [NaN, NaN];
+  let [oxStart, oxEnd] = oxW ? detectBurnWindowFromWeight(rows, oxW) : [NaN, NaN];
   const sFuel = fuelW && Number.isFinite(fuelStart) && Number.isFinite(fuelEnd)
     ? computeRegressionSlope(rows, "Time (s)", fuelW, fuelStart, fuelEnd)
     : NaN;
@@ -1004,10 +998,6 @@ function bindEvents() {
     "venturi-fuel-inlet-select", "venturi-fuel-throat-select",
     "venturi-ox-inlet-select", "venturi-ox-throat-select",
   ].forEach((id) => $(id).addEventListener("change", () => { maybeRecomputeAnalysis(); scheduleConfigSave(); }));
-  $("analysis-flow-detect").addEventListener("change", () => { maybeRecomputeAnalysis(); scheduleConfigSave(); });
-  ["fuel-flow-start-input", "fuel-flow-end-input", "ox-flow-start-input", "ox-flow-end-input"].forEach(
-    (id) => { $(id).addEventListener("change", () => { maybeRecomputeAnalysis(); scheduleConfigSave(); }); },
-  );
   const _cfg0 = loadSavedDashboardConfig();
   if (_cfg0) {
     state.pendingDashConfig = _cfg0;

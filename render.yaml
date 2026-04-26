@@ -1,0 +1,9 @@
+# Optional Blueprint: connect repo with "Apply render.yaml" or add a Static Site manually
+# and set Publish directory to  webapp  (and leave Build command empty or "true").
+
+services:
+  - type: web
+    name: rocket-dashboard-webapp
+    runtime: static
+    buildCommand: "true"
+    staticPublishPath: ./webapp
