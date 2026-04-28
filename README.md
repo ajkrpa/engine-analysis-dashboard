@@ -1,15 +1,9 @@
 # Hot-fire engine analysis dashboard — user guide
 
+https://engine-analysis-dashboard.onrender.com/
+
 This app helps you review **CSV test data** from a rocket or engine hot fire: plot **time series** (pressures, loads, etc.), then compute **performance metrics** (thrust-based specific impulse `Isp`, characteristic velocity `C*`, mixture ratio `O/F`, venturi mass flow, burn time) from your channels.
 
-The main version runs **in your web browser**. You do **not** need to install anything to try the [hosted site](#opening-the-dashboard) if your team provides a link; for use on your own computer, see [Run it on your machine](#run-it-on-your-machine-optional).
-
----
-
-## Opening the dashboard
-
-- **If your team shared a URL** (for example on Render or another host), open that link in **Chrome, Edge, or Firefox**. The page is a normal website; your data is processed in the browser (see [Privacy](#privacy-and-your-data)).
-- **If there is no hosted site**, you can run the files locally with a tiny built-in web server — see [Run it on your machine](#run-it-on-your-machine-optional).
 
 ---
 
