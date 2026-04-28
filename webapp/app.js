@@ -85,39 +85,25 @@ function nouiStartFromMergedAndInputs(merged, inputStartId, inputEndId) {
 }
 
 /**
- * Start/end time (s) of the longest run where venturi ṁ (kg/s) is ≥ 10% of the series peak
- * (consecutive samples in time order). No venturi / all NaN → [NaN, NaN].
+ * Mean of yArr over samples with time in [tBurn0, tBurn1] (inclusive; thrust-derived burn window).
+ * Skips non-finite y values. No samples → NaN.
  */
-function detectVenturiMdotActiveWindow(mdotArr, tArr) {
-  const n = mdotArr.length;
-  if (!n || n !== tArr.length) return [NaN, NaN];
-  const peak = Math.max(
-    -Infinity,
-    ...mdotArr.map((m) => (Number.isFinite(m) && m > 0 ? m : -Infinity)),
-  );
-  if (!Number.isFinite(peak) || peak <= 0) return [NaN, NaN];
-  const thr = 0.1 * peak;
-  let bestLo = 0;
-  let bestLen = 0;
-  let i = 0;
-  while (i < n) {
-    if (!Number.isFinite(mdotArr[i]) || mdotArr[i] < thr || !Number.isFinite(tArr[i])) {
-      i += 1;
-      continue;
+function meanInBurnWindow(tArr, yArr, tBurn0, tBurn1) {
+  if (!Number.isFinite(tBurn0) || !Number.isFinite(tBurn1) || tBurn1 < tBurn0) return NaN;
+  if (!tArr.length || tArr.length !== yArr.length) return NaN;
+  const eps = 1e-9;
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < tArr.length; i += 1) {
+    const t = tArr[i];
+    const y = yArr[i];
+    if (t < tBurn0 - eps || t > tBurn1 + eps) continue;
+    if (Number.isFinite(y)) {
+      sum += y;
+      count += 1;
     }
-    const j0 = i;
-    let j = i;
-    while (j < n && Number.isFinite(mdotArr[j]) && mdotArr[j] >= thr && Number.isFinite(tArr[j])) {
-      j += 1;
-    }
-    if (j - j0 > bestLen) {
-      bestLen = j - j0;
-      bestLo = j0;
-    }
-    i = j;
   }
-  if (bestLen === 0) return [NaN, NaN];
-  return [tArr[bestLo], tArr[bestLo + bestLen - 1]];
+  return count > 0 ? sum / count : NaN;
 }
 
 function destroyNouiIfExists(el) {
@@ -218,6 +204,8 @@ const METRICS = [
   "C* (m/s)",
   "Venturi fuel mdot (kg/s)",
   "Venturi ox mdot (kg/s)",
+  "Tank fuel mdot (kg/s)",
+  "Tank ox mdot (kg/s)",
   "O/F",
   "Burn time",
 ];
@@ -232,6 +220,7 @@ const DASH_CONFIG_CHECKBOX_IDS = [
   "analysis-regression", "analysis-show-burn",
 ];
 const DASH_CONFIG_SELECT_IDS = [
+  "analysis-mass-flow-source",
   "chamber-pressure-select", "fuel-weight-select", "ox-weight-select",
   "venturi-fuel-inlet-select", "venturi-fuel-throat-select",
   "venturi-ox-inlet-select", "venturi-ox-throat-select",
@@ -541,18 +530,41 @@ function drawTimeseries() {
   Plotly.newPlot("data-graph", traces, layout, PLOT_CONFIG);
 }
 
+function formatAvgMdotKgS(v) {
+  if (!Number.isFinite(v)) return "—";
+  if (Math.abs(v) > 0 && Math.abs(v) < 0.0001) return v.toExponential(3);
+  return v.toFixed(4);
+}
+
+function formatAvgThrustLbf(v) {
+  if (!Number.isFinite(v)) return "—";
+  return v.toFixed(2);
+}
+
+function formatAvgChamberPsi(v) {
+  if (!Number.isFinite(v)) return "—";
+  return v.toFixed(2);
+}
+
 function updateMdotDisplays(meta) {
   const dash = "—";
   if (!meta) {
-    ["analysis-burn-time-display", "analysis-fuel-flow-time-display", "analysis-ox-flow-time-display"].forEach(
+    [
+      "analysis-burn-time-display",
+      "analysis-avg-thrust-burn-display",
+      "analysis-avg-chamber-p-burn-display",
+      "analysis-fuel-flow-time-display",
+      "analysis-ox-flow-time-display",
+    ].forEach(
       (id) => { const el = $(id); if (el) el.textContent = dash; },
     );
     return;
   }
-  const spanS = (t0, t1) => (Number.isFinite(t0) && Number.isFinite(t1) && t1 >= t0 ? (t1 - t0).toFixed(3) : dash);
   $("analysis-burn-time-display").textContent = Number.isFinite(meta.burnStart) && Number.isFinite(meta.burnEnd) ? (meta.burnEnd - meta.burnStart).toFixed(3) : dash;
-  $("analysis-fuel-flow-time-display").textContent = spanS(meta.venturiFuelFlowStart, meta.venturiFuelFlowEnd);
-  $("analysis-ox-flow-time-display").textContent = spanS(meta.venturiOxFlowStart, meta.venturiOxFlowEnd);
+  $("analysis-avg-thrust-burn-display").textContent = formatAvgThrustLbf(meta.avgThrustLbfBurn);
+  $("analysis-avg-chamber-p-burn-display").textContent = formatAvgChamberPsi(meta.avgChamberPsiBurn);
+  $("analysis-fuel-flow-time-display").textContent = formatAvgMdotKgS(meta.avgVenturiFuelMdotBurn);
+  $("analysis-ox-flow-time-display").textContent = formatAvgMdotKgS(meta.avgVenturiOxMdotBurn);
 }
 
 function getAnalysisHintEl() {
@@ -626,8 +638,13 @@ function computePerformance(opts = {}) {
   // Oxidizer line: ox channels, ox rho, ox C_dA, ox β only — no fuel values
   const ventOx = computeVenturiMdot(rows, vo1, vo2, voRho, voCda, voBeta);
   const tAll = rows.map((r) => r["Time (s)"]);
-  const [venturiFuelFlowStart, venturiFuelFlowEnd] = detectVenturiMdotActiveWindow(ventFuel, tAll);
-  const [venturiOxFlowStart, venturiOxFlowEnd] = detectVenturiMdotActiveWindow(ventOx, tAll);
+  /** totalThrust: sum of user-selected thrust channel columns (same as "Total thrust" in metrics). */
+  const avgThrustLbfBurn = meanInBurnWindow(tAll, totalThrust, burnStart, burnEnd);
+  const chamberPsiArr = rows.map((r) => (chamber ? toNumber(r[chamber]) : NaN));
+  /** Single selected chamber pressure column from Inputs. */
+  const avgChamberPsiBurn = meanInBurnWindow(tAll, chamberPsiArr, burnStart, burnEnd);
+  const avgVenturiFuelMdotBurn = meanInBurnWindow(tAll, ventFuel, burnStart, burnEnd);
+  const avgVenturiOxMdotBurn = meanInBurnWindow(tAll, ventOx, burnStart, burnEnd);
   /** Isp/C* use total ṁ = fuel venturi + ox venturi (kg/s); missing side treated as 0. */
   const totalVenturiMdotKg = (i) => {
     const f = Number.isFinite(ventFuel[i]) ? ventFuel[i] : 0;
@@ -642,12 +659,21 @@ function computePerformance(opts = {}) {
     return NaN;
   };
 
+  const useVenturiForPerf = ($("analysis-mass-flow-source")?.value || "venturis") === "venturis";
+  const totalMdotForPerf = (i) => {
+    if (useVenturiForPerf) return totalVenturiMdotKg(i);
+    const s = mDotFuelKg + mDotOxKg;
+    return Number.isFinite(s) && s > 0 ? s : 0;
+  };
+  const tankFuelMdotSeries = fuelW && Number.isFinite(mDotFuel) ? mDotFuelKg : NaN;
+  const tankOxMdotSeries = oxW && Number.isFinite(mDotOx) ? mDotOxKg : NaN;
+
   state.perf = rows.map((r, i) => {
     const thrustLbf = totalThrust[i];
     const thrustN = thrustLbf * LBF_TO_N;
     const pcPsi = chamber ? toNumber(r[chamber]) : NaN;
     const pcPa = Number.isFinite(pcPsi) ? pcPsi * PSI_TO_PA : NaN;
-    const mdotTot = totalVenturiMdotKg(i);
+    const mdotTot = totalMdotForPerf(i);
     return {
       "Time (s)": r["Time (s)"],
       "Total thrust (lbf)": thrustLbf,
@@ -656,13 +682,15 @@ function computePerformance(opts = {}) {
       "Cf": Number.isFinite(pcPa) && Astar > 0 && pcPa * Astar > 0 ? thrustN / (pcPa * Astar) : NaN,
       "Venturi fuel mdot (kg/s)": ventFuel[i],
       "Venturi ox mdot (kg/s)": ventOx[i],
+      "Tank fuel mdot (kg/s)": tankFuelMdotSeries,
+      "Tank ox mdot (kg/s)": tankOxMdotSeries,
       "O/F": ofRatio(i),
       "Burn time": burnDurationS,
     };
   });
   state.perfMeta = {
     mDotFuel, mDotOx, burnStart, burnEnd,
-    venturiFuelFlowStart, venturiFuelFlowEnd, venturiOxFlowStart, venturiOxFlowEnd,
+    avgThrustLbfBurn, avgChamberPsiBurn, avgVenturiFuelMdotBurn, avgVenturiOxMdotBurn,
   };
   updateMdotDisplays(state.perfMeta);
   drawAnalysisGraph();
@@ -671,6 +699,19 @@ function computePerformance(opts = {}) {
 function selectedAnalysisMetrics() {
   return Array.from(document.querySelectorAll("#analysis-metrics-checklist input:checked"))
     .map((i) => String(i.value).trim());
+}
+
+/** Plot metrics that apply for the current mass-flow source (venturi vs tank mdot lines are exclusive). */
+function selectedAnalysisMetricsForPlot() {
+  const source = $("analysis-mass-flow-source")?.value || "venturis";
+  return selectedAnalysisMetrics().filter((m) => {
+    if (source === "venturis") {
+      if (m === "Tank fuel mdot (kg/s)" || m === "Tank ox mdot (kg/s)") return false;
+    } else {
+      if (m === "Venturi fuel mdot (kg/s)" || m === "Venturi ox mdot (kg/s)") return false;
+    }
+    return true;
+  });
 }
 
 function optionListContains(select, val) {
@@ -775,7 +816,7 @@ function drawAnalysisGraph() {
     Plotly.newPlot("analysis-graph", [], darkLayout({ title: "Click Calculate (Inputs) to compute performance metrics" }), PLOT_CONFIG);
     return;
   }
-  const metrics = selectedAnalysisMetrics();
+  const metrics = selectedAnalysisMetricsForPlot();
   if (!metrics.length) {
     Plotly.newPlot("analysis-graph", [], darkLayout({ title: "Check at least one item under Plot Metrics" }), PLOT_CONFIG);
     return;
@@ -793,14 +834,16 @@ function drawAnalysisGraph() {
   }
   const x = ds.map((r) => r["Time (s)"]);
   const first = ds[0] || {};
-  const hasThrust = metrics.includes("Total thrust (lbf)");
-  const useDualY = hasThrust && metrics.some((m) => m !== "Total thrust (lbf)");
+  /** "Burn time" is only a shaded region, not a y(t) line (value is constant duration in s). */
+  const plotLineMetrics = metrics.filter((m) => m !== "Burn time");
+  const hasThrust = plotLineMetrics.includes("Total thrust (lbf)");
+  const useDualY = hasThrust && plotLineMetrics.some((m) => m !== "Total thrust (lbf)");
   const yLeft = "y";
   const yRight = "y2";
   const annotations = [];
   const traces = [];
   let annIdx = 0;
-  metrics
+  plotLineMetrics
     .filter((m) => m in first)
     .forEach((m) => {
       const y = ds.map((r) => toNumber(r[m]));
@@ -822,9 +865,17 @@ function drawAnalysisGraph() {
       }
       traces.push(t);
     });
-  const title = metrics.length
-    ? (metrics.length > 4 ? `Performance (${metrics.length} series)` : metrics.join(" · "))
-    : "Select metrics in Plot Metrics";
+  const showBurnShade = metrics.includes("Burn time");
+  let title;
+  if (plotLineMetrics.length > 4) {
+    title = `Performance (${plotLineMetrics.length} series${showBurnShade ? ", burn shaded" : ""})`;
+  } else if (plotLineMetrics.length) {
+    title = showBurnShade ? `${plotLineMetrics.join(" · ")} · burn (shaded)` : plotLineMetrics.join(" · ");
+  } else if (showBurnShade) {
+    title = "Burn time (shaded region)";
+  } else {
+    title = "Select metrics in Plot Metrics";
+  }
   const layout = darkLayout({
     title,
     xaxis: { title: "Time (s)" },
@@ -834,7 +885,7 @@ function drawAnalysisGraph() {
     ...(annotations.length && { annotations }),
     ...(useDualY && {
       yaxis2: {
-        title: { text: "Isp, C*, venturi, burn (right scale)", font: { color: "#94a3b8" } },
+        title: { text: "Isp, C*, mdot, O/F (right scale)", font: { color: "#94a3b8" } },
         overlaying: "y",
         side: "right",
         showgrid: true,
@@ -844,157 +895,111 @@ function drawAnalysisGraph() {
       },
     }),
   });
-  if (metrics.includes("Burn time") && state.perfMeta && Number.isFinite(state.perfMeta.burnStart) && Number.isFinite(state.perfMeta.burnEnd)) {
+  if (showBurnShade && state.perfMeta && Number.isFinite(state.perfMeta.burnStart) && Number.isFinite(state.perfMeta.burnEnd)) {
     layout.shapes.push({ type: "rect", x0: state.perfMeta.burnStart, x1: state.perfMeta.burnEnd, y0: 0, y1: 1, yref: "paper", fillcolor: "rgba(100,149,237,0.25)", line: { width: 0 } });
   }
   if (!traces.length) {
+    if (showBurnShade && state.perfMeta && Number.isFinite(state.perfMeta.burnStart) && Number.isFinite(state.perfMeta.burnEnd) && x.length) {
+      const t0 = x[0];
+      const t1 = x[x.length - 1];
+      const layoutOnlyBurn = darkLayout({
+        title: "Burn time (shaded region)",
+        xaxis: { title: "Time (s)" },
+        yaxis: { title: " ", visible: false },
+        showlegend: false,
+        shapes: layout.shapes,
+      });
+      Plotly.newPlot(
+        "analysis-graph",
+        [{ x: [t0, t1], y: [0, 0], type: "scatter", mode: "lines", line: { color: "rgba(0,0,0,0)", width: 0 }, showlegend: false, hoverinfo: "skip" }],
+        layoutOnlyBurn,
+        PLOT_CONFIG,
+      );
+      return;
+    }
     Plotly.newPlot("analysis-graph", [], darkLayout({ title: "No plottable series (check selected metrics)" }), PLOT_CONFIG);
     return;
   }
   Plotly.newPlot("analysis-graph", traces, layout, PLOT_CONFIG);
 }
 
-function downloadPlot(divId, filename) {
-  Plotly.downloadImage(divId, { format: "png", filename, scale: 2 });
+const savePlotContext = { divId: "data-graph", defaultBase: "plot" };
+
+function sanitizeFilenameBase(s) {
+  const t = String(s ?? "").trim();
+  if (!t) return "";
+  return t.replace(/[<>:"/\\|?*]+/g, "_").replace(/\s+/g, " ").trim() || "";
 }
 
-function bindEvents() {
-  $("upload-data").addEventListener("change", async (e) => {
-    const pre = getDashboardConfigObject();
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-    const datasets = [];
-    for (const file of files) {
-      const text = await file.text();
-      const parsed = Papa.parse(text, { header: true, dynamicTyping: false, skipEmptyLines: true });
-      const raw = (parsed.data || []).map(stripBomFromRowKeys);
-      const rows = parseTimeSeconds(raw);
-      datasets.push(rows);
-    }
-    const merged = mergeDatasets(datasets);
-    state.dataset = merged;
-    state.perf = null;
-    state.perfMeta = null;
-    if (getAnalysisHintEl()) getAnalysisHintEl().textContent = "";
-    updateMdotDisplays(null);
-    const { tMin, tMax } = merged;
-    const tPair = mergeSavedTimeOnUpload(pre, "time-start", "time-end", tMin, tMax);
-    const aPair = mergeSavedTimeOnUpload(pre, "analysis-time-start", "analysis-time-end", tMin, tMax);
-    $("time-start").value = tPair.lo;
-    $("time-end").value = tPair.hi;
-    $("analysis-time-start").value = aPair.lo;
-    $("analysis-time-end").value = aPair.hi;
-    initTimeseriesNoui(merged);
-    initAnalysisNoui(merged);
-    const cols = numericColumns(merged.rows);
-    const preData = (pre.dataChannels || []).filter((c) => cols.includes(c));
-    state.selectedChannels = preData.length ? preData.slice() : [];
-    makeCheckboxList($("data-checklist"), cols, state.selectedChannels, () => {
-      state.selectedChannels = Array.from(document.querySelectorAll("#data-checklist input:checked")).map((i) => i.value);
-      drawTimeseries();
-      scheduleConfigSave();
-    });
-    initThrustChannelPicker(cols, pre.thrust);
-    const selectIds = [
-      "chamber-pressure-select", "fuel-weight-select", "ox-weight-select",
-      "venturi-fuel-inlet-select", "venturi-fuel-throat-select", "venturi-ox-inlet-select", "venturi-ox-throat-select",
-    ];
-    selectIds.forEach((id) => {
-      setSelectOptions($(id), cols);
-      if (pre?.e?.[id] && optionListContains($(id), pre.e[id])) $(id).value = String(pre.e[id]);
-    });
-    makeCheckboxList($("analysis-metrics-checklist"), METRICS, getMetricsInitialSelected(pre), () => {
-      drawAnalysisGraph();
-      scheduleConfigSave();
-    });
-    $("upload-filenames").textContent = `Loaded: ${files.map((f) => f.name).join(", ")}`;
-    drawTimeseries();
-    drawAnalysisGraph();
-    scheduleConfigSave();
-  });
-
-  $("clear-channels-button").addEventListener("click", () => {
-    state.selectedChannels = [];
-    document.querySelectorAll("#data-checklist input").forEach((i) => { i.checked = false; });
-    drawTimeseries();
-    scheduleConfigSave();
-  });
-  $("reset-button").addEventListener("click", () => {
-    if (!state.dataset) return;
-    const { tMin, tMax } = state.dataset;
-    const el = $("time-range-noui");
-    if (el?.noUiSlider) {
-      const { startLo, startHi } = nudgeTimeRange(tMin, tMax);
-      el.noUiSlider.set([startLo, startHi]);
-    } else {
-      $("time-start").value = tMin;
-      $("time-end").value = tMax;
-    }
-    drawTimeseries();
-    scheduleConfigSave();
-  });
-  $("analysis-reset-button").addEventListener("click", () => {
-    if (!state.dataset) return;
-    const { tMin, tMax } = state.dataset;
-    const el = $("analysis-time-range-noui");
-    if (el?.noUiSlider) {
-      const { startLo, startHi } = nudgeTimeRange(tMin, tMax);
-      el.noUiSlider.set([startLo, startHi]);
-    } else {
-      $("analysis-time-start").value = tMin;
-      $("analysis-time-end").value = tMax;
-    }
-    drawAnalysisGraph();
-    scheduleConfigSave();
-  });
-  ["time-start", "time-end"].forEach((id) => $(id).addEventListener("input", () => {
-    drawTimeseries();
-    syncTimeseriesNouiFromInputs();
-    scheduleConfigSave();
-  }));
-  ["analysis-regression", "analysis-show-burn"].forEach((id) => $(id).addEventListener("input", () => {
-    drawTimeseries();
-    scheduleConfigSave();
-  }));
-  ["analysis-time-start", "analysis-time-end"].forEach((id) => $(id).addEventListener("input", () => {
-    drawAnalysisGraph();
-    syncAnalysisNouiFromInputs();
-    scheduleConfigSave();
-  }));
-  $("analysis-calculate-button").addEventListener("click", computePerformance);
-  $("save-data-graph-btn").addEventListener("click", () => downloadPlot("data-graph", "timeseries"));
-  $("save-analysis-graph-btn").addEventListener("click", () => downloadPlot("analysis-graph", "performance_analysis"));
-
-  [
-    "input-throat-area",
-    "chamber-pressure-select",
-    "fuel-weight-select",
-    "ox-weight-select",
-    "venturi-fuel-rho-constant",
-    "venturi-ox-rho-constant",
-    "venturi-fuel-cda",
-    "venturi-fuel-beta",
-    "venturi-ox-cda",
-    "venturi-ox-beta",
-  ].forEach((id) => { $(id).addEventListener("change", () => { maybeRecomputeAnalysis(); scheduleConfigSave(); }); });
-  [
-    "venturi-fuel-inlet-select", "venturi-fuel-throat-select",
-    "venturi-ox-inlet-select", "venturi-ox-throat-select",
-  ].forEach((id) => $(id).addEventListener("change", () => { maybeRecomputeAnalysis(); scheduleConfigSave(); }));
-  const _cfg0 = loadSavedDashboardConfig();
-  if (_cfg0) {
-    state.pendingDashConfig = _cfg0;
-    applyDashboardConfigFields(_cfg0);
-    if (Array.isArray(_cfg0.dataChannels)) state.selectedChannels = _cfg0.dataChannels.slice();
-    if (Array.isArray(_cfg0.thrust)) state.selectedThrustChannels = _cfg0.thrust.slice();
+function cloneTitleFromGraphDiv(gd) {
+  if (!gd?.layout) return undefined;
+  const t = gd.layout.title;
+  if (t === undefined) return undefined;
+  if (typeof t === "string") return t;
+  try {
+    return JSON.parse(JSON.stringify(t));
+  } catch {
+    return t;
   }
-  makeCheckboxList($("analysis-metrics-checklist"), METRICS, getMetricsInitialSelected(_cfg0), () => {
-    drawAnalysisGraph();
-    scheduleConfigSave();
-  });
 }
 
-bindEvents();
+function openSavePlotImageModal(divId, defaultBase, modalTitle) {
+  savePlotContext.divId = divId;
+  savePlotContext.defaultBase = defaultBase || "plot";
+  $("save-plot-filename").value = savePlotContext.defaultBase;
+  $("save-plot-graph-title").value = "";
+  $("save-plot-format").value = "png";
+  $("save-plot-modal-title").textContent = modalTitle;
+  if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+    bootstrap.Modal.getOrCreateInstance($("save-plot-image-modal")).show();
+  }
+}
 
-Plotly.newPlot("data-graph", [], darkLayout({ title: "Select channels in the checklist" }), PLOT_CONFIG);
-Plotly.newPlot("analysis-graph", [], darkLayout({ title: "Click Calculate (Inputs) to compute performance metrics" }), PLOT_CONFIG);
+async function runSavePlotImageDownload() {
+  const { divId, defaultBase } = savePlotContext;
+  const gd = document.getElementById(divId);
+  if (!gd) return;
+  const baseRaw = sanitizeFilenameBase($("save-plot-filename").value) || defaultBase;
+  const fmt = String($("save-plot-format").value || "png");
+  const titleText = String($("save-plot-graph-title").value || "").trim();
+  const titleSnapshot = titleText ? cloneTitleFromGraphDiv(gd) : null;
+  const btn = $("save-plot-confirm-btn");
+  if (btn) btn.disabled = true;
+  try {
+    if (titleText) {
+      const r = Plotly.relayout(gd, { title: { ...PLOT_DARK.title, text: titleText } });
+      if (r && typeof r.then === "function") await r;
+    }
+    Plotly.downloadImage(gd, { format: fmt, filename: baseRaw, scale: 2 });
+  } catch (e) {
+    console.warn("Save image failed", e);
+  } finally {
+    if (titleText) {
+      let restore;
+      if (titleSnapshot === undefined) {
+        restore = { ...PLOT_DARK.title, text: "" };
+      } else if (typeof titleSnapshot === "string") {
+        restore = titleSnapshot;
+      } else {
+        restore = titleSnapshot;
+      }
+      try {
+        const r2 = Plotly.relayout(gd, { title: restore });
+        if (r2 && typeof r2.then === "function") await r2;
+      } catch (e2) {
+        console.warn("Could not restore plot title", e2);
+      }
+    }
+    if (btn) btn.disabled = false;
+    if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+      const m = $("save-plot-image-modal");
+      const inst = bootstrap.Modal.getInstance(m) || bootstrap.Modal.getOrCreateInstance(m);
+      inst.hide();
+    }
+  }
+}
+
+function initializeEmptyPlots() {
+  Plotly.newPlot("data-graph", [], darkLayout({ title: "Select channels in the checklist" }), PLOT_CONFIG);
+  Plotly.newPlot("analysis-graph", [], darkLayout({ title: "Click Calculate (Inputs) to compute performance metrics" }), PLOT_CONFIG);
+}

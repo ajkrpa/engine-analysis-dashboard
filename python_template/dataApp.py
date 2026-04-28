@@ -215,7 +215,7 @@ analysis_tabs_container = dbc.Card(
                         children=[
                             html.P("Enter values and select channels", className="small text-muted mb-2"),
                             html.P("Data must be in: thrust lbf, pressure psi, weights lbf, A* m². Pressure is converted to Pa for calculations.", className="small text-muted mb-2"),
-                            dbc.Label("A* (m²)", className="fw-bold"),
+                            dbc.Label("Throat Area (m²)", className="fw-bold"),
                             dcc.Input(
                                 id="input-throat-area",
                                 type="number",
@@ -470,7 +470,7 @@ def _initial_store():
 # Main layout constrained by theme.css (assets/theme.css)
 layout = dbc.Container([
     html.H1(
-        'Dashboard',
+        'Data Analysis Dashboard',
         style={"textAlign": "center", "marginBottom": "30px"}
     ),
 
@@ -589,13 +589,25 @@ layout = dbc.Container([
                 ], width="auto"),
                 dbc.Col([
                     html.Div([
-                        html.Span("Ox flow time (s): ", className="small"),
+                        html.Span("Average total thrust, burn (lbf): ", className="small"),
+                        html.Span(id="analysis-avg-thrust-burn-display", children="—"),
+                    ], className="p-2 border rounded", style={"backgroundColor": "#2b3e50", "color": "white"}),
+                ], width="auto"),
+                dbc.Col([
+                    html.Div([
+                        html.Span("Average chamber pressure, burn (psi): ", className="small"),
+                        html.Span(id="analysis-avg-chamber-p-burn-display", children="—"),
+                    ], className="p-2 border rounded", style={"backgroundColor": "#2b3e50", "color": "white"}),
+                ], width="auto"),
+                dbc.Col([
+                    html.Div([
+                        html.Span("Average ox mass flow (kg/s): ", className="small"),
                         html.Span(id="analysis-ox-flow-time-display", children="—"),
                     ], className="p-2 border rounded", style={"backgroundColor": "#2b3e50", "color": "white"}),
                 ], width="auto"),
                 dbc.Col([
                     html.Div([
-                        html.Span("Fuel flow time (s): ", className="small"),
+                        html.Span("Average fuel mass flow (kg/s): ", className="small"),
                         html.Span(id="analysis-fuel-flow-time-display", children="—"),
                     ], className="p-2 border rounded", style={"backgroundColor": "#2b3e50", "color": "white"}),
                 ], width="auto"),
@@ -1049,6 +1061,31 @@ def compute_and_store_analysis_perf(
     perf["Venturi fuel mdot (kg/s)"] = s_fuel_vent.reindex(perf.index).astype(float)
     perf["Venturi ox mdot (kg/s)"] = s_ox_vent.reindex(perf.index).astype(float)
 
+    def _mean_venturi_mdot_burn_kg_s(time_col_series, mdot_series, bt0, bt1):
+        if not _valid_window(bt0, bt1):
+            return np.nan
+        t0, t1 = float(bt0), float(bt1)
+        t = time_col_series.reindex(mdot_series.index).astype(float)
+        m = mdot_series.astype(float)
+        mask = (t >= t0 - 1e-9) & (t <= t1 + 1e-9)
+        arr = np.asarray(m[mask], dtype=float)
+        arr = arr[np.isfinite(arr)]
+        if arr.size == 0:
+            return np.nan
+        return float(np.mean(arr))
+
+    t_for_vent = df[X_COL]
+    # total_thrust: sum of user-selected thrust columns (see compute_total_thrust).
+    avg_thrust_burn = _mean_venturi_mdot_burn_kg_s(t_for_vent, total_thrust, burn_t_start, burn_t_end)
+    if chamber_pressure_col and chamber_pressure_col in df.columns:
+        avg_chamber_psi_burn = _mean_venturi_mdot_burn_kg_s(
+            t_for_vent, df[chamber_pressure_col], burn_t_start, burn_t_end
+        )
+    else:
+        avg_chamber_psi_burn = np.nan
+    avg_vent_fuel_burn = _mean_venturi_mdot_burn_kg_s(t_for_vent, s_fuel_vent, burn_t_start, burn_t_end)
+    avg_vent_ox_burn = _mean_venturi_mdot_burn_kg_s(t_for_vent, s_ox_vent, burn_t_start, burn_t_end)
+
     if use_venturi_isp:
 
         def _blend_vent_to_mdot(vent_series, scalar_kg_s, idx):
@@ -1082,6 +1119,10 @@ def compute_and_store_analysis_perf(
         "ox_flow_t_end": float(ox_flow_t_end) if np.isfinite(ox_flow_t_end) else None,
         "burn_t_start": float(burn_t_start) if np.isfinite(burn_t_start) else None,
         "burn_t_end": float(burn_t_end) if np.isfinite(burn_t_end) else None,
+        "avg_thrust_lbf_burn": float(avg_thrust_burn) if np.isfinite(avg_thrust_burn) else None,
+        "avg_chamber_psi_burn": float(avg_chamber_psi_burn) if np.isfinite(avg_chamber_psi_burn) else None,
+        "avg_venturi_fuel_mdot_burn": float(avg_vent_fuel_burn) if np.isfinite(avg_vent_fuel_burn) else None,
+        "avg_venturi_ox_mdot_burn": float(avg_vent_ox_burn) if np.isfinite(avg_vent_ox_burn) else None,
     }
 
 
@@ -1228,21 +1269,19 @@ def update_data_graph(filtered_store, store_data, selected_data, time_range, n_c
     Output("analysis-mdot-fuel-display", "children"),
     Output("analysis-mdot-ox-display", "children"),
     Output("analysis-burn-time-display", "children"),
+    Output("analysis-avg-thrust-burn-display", "children"),
+    Output("analysis-avg-chamber-p-burn-display", "children"),
     Output("analysis-ox-flow-time-display", "children"),
     Output("analysis-fuel-flow-time-display", "children"),
     Input("analysis-perf-store", "data"),
 )
 def update_mass_flow_displays(perf_store):
     if not perf_store:
-        return "—", "—", "—", "—", "—"
+        return "—", "—", "—", "—", "—", "—", "—"
     m_fuel = perf_store.get("m_dot_fuel")
     m_ox = perf_store.get("m_dot_ox")
     burn_t_start = perf_store.get("burn_t_start")
     burn_t_end = perf_store.get("burn_t_end")
-    ox_flow_t_start = perf_store.get("ox_flow_t_start")
-    ox_flow_t_end = perf_store.get("ox_flow_t_end")
-    fuel_flow_t_start = perf_store.get("fuel_flow_t_start")
-    fuel_flow_t_end = perf_store.get("fuel_flow_t_end")
     fuel_str = f"{m_fuel:.4f}" if m_fuel is not None and np.isfinite(m_fuel) else "—"
     ox_str = f"{m_ox:.4f}" if m_ox is not None and np.isfinite(m_ox) else "—"
     if (
@@ -1253,23 +1292,31 @@ def update_mass_flow_displays(perf_store):
         burn_time_str = f"{float(burn_t_end) - float(burn_t_start):.3f}"
     else:
         burn_time_str = "—"
-    if (
-        ox_flow_t_start is not None and ox_flow_t_end is not None
-        and np.isfinite(ox_flow_t_start) and np.isfinite(ox_flow_t_end)
-        and float(ox_flow_t_end) > float(ox_flow_t_start)
-    ):
-        ox_flow_time_str = f"{float(ox_flow_t_end) - float(ox_flow_t_start):.3f}"
+
+    avg_t = perf_store.get("avg_thrust_lbf_burn")
+    if avg_t is not None and np.isfinite(avg_t):
+        avg_thrust_str = f"{float(avg_t):.2f}"
     else:
-        ox_flow_time_str = "—"
-    if (
-        fuel_flow_t_start is not None and fuel_flow_t_end is not None
-        and np.isfinite(fuel_flow_t_start) and np.isfinite(fuel_flow_t_end)
-        and float(fuel_flow_t_end) > float(fuel_flow_t_start)
-    ):
-        fuel_flow_time_str = f"{float(fuel_flow_t_end) - float(fuel_flow_t_start):.3f}"
+        avg_thrust_str = "—"
+
+    avg_pc = perf_store.get("avg_chamber_psi_burn")
+    if avg_pc is not None and np.isfinite(avg_pc):
+        avg_chamber_str = f"{float(avg_pc):.2f}"
     else:
-        fuel_flow_time_str = "—"
-    return fuel_str, ox_str, burn_time_str, ox_flow_time_str, fuel_flow_time_str
+        avg_chamber_str = "—"
+
+    def _fmt_avg_vent_mdot(v):
+        if v is not None and np.isfinite(v):
+            if abs(v) > 0 and abs(v) < 0.0001:
+                return f"{v:.3e}"
+            return f"{v:.4f}"
+        return "—"
+
+    avg_ox = perf_store.get("avg_venturi_ox_mdot_burn")
+    avg_fuel = perf_store.get("avg_venturi_fuel_mdot_burn")
+    ox_vent_burn_str = _fmt_avg_vent_mdot(avg_ox)
+    fuel_vent_burn_str = _fmt_avg_vent_mdot(avg_fuel)
+    return fuel_str, ox_str, burn_time_str, avg_thrust_str, avg_chamber_str, ox_vent_burn_str, fuel_vent_burn_str
 
 
 # Analysis graph: reads cached perf from store, filters by slider, downsamples for speed (no recompute on slider drag)
@@ -1384,17 +1431,37 @@ def update_analysis_graph(perf_store, analysis_time_range, metrics_to_plot):
         t_min_plot = float(perf[X_COL].min())
         t_max_plot = float(perf[X_COL].max())
     else:
+        # Only "Burn time" selected: no y-series line; invisible trace sets x range for the shaded region.
         fig = go.Figure()
-        t_min_plot = float(analysis_time_range[0]) if analysis_time_range and len(analysis_time_range) == 2 else 0.0
-        t_max_plot = float(analysis_time_range[1]) if analysis_time_range and len(analysis_time_range) == 2 else float(perf[X_COL].max()) if not perf.empty else 1.0
-        fig.update_layout(
-            xaxis=dict(range=[t_min_plot, t_max_plot], title="Time (s)", tickformat=".3f", type="linear"),
-            yaxis=dict(range=[0, 1], title="Burn time"),
-            title="Burn time",
+        t_min_plot = float(perf[X_COL].min()) if not perf.empty else 0.0
+        t_max_plot = float(perf[X_COL].max()) if not perf.empty else 1.0
+        if analysis_time_range is not None and len(analysis_time_range) == 2:
+            try:
+                t_lo = float(analysis_time_range[0])
+                t_hi = float(analysis_time_range[1])
+                if t_lo > t_hi:
+                    t_lo, t_hi = t_hi, t_lo
+                t_min_plot, t_max_plot = t_lo, t_hi
+            except (TypeError, ValueError):
+                pass
+        fig.add_trace(
+            go.Scatter(
+                x=[t_min_plot, t_max_plot],
+                y=[0, 0],
+                mode="lines",
+                line=dict(width=0, color="rgba(0,0,0,0)"),
+                showlegend=False,
+                hoverinfo="skip",
+            )
         )
-        yaxis_title = "Burn time"
+        yaxis_title = " "
+        fig.update_layout(
+            title="Burn time (shaded region)",
+            xaxis=dict(range=[t_min_plot, t_max_plot], title="Time (s)", tickformat=".3f", type="linear"),
+            yaxis=dict(visible=False),
+        )
 
-    # Add burn time band and vertical lines when selected and available
+    # Shaded burn window only (no "Burn time" y(t) line — perf value is a scalar duration).
     burn_t_start = perf_store.get("burn_t_start")
     burn_t_end = perf_store.get("burn_t_end")
     if show_burn_time and burn_t_start is not None and burn_t_end is not None:
@@ -1411,19 +1478,23 @@ def update_analysis_graph(perf_store, analysis_time_range, metrics_to_plot):
             line=dict(width=0),
             layer="below",
         )
-        fig.add_vline(x=t_start, line_dash="dash", line_color="steelblue", line_width=1.5, annotation_text="Burn start")
-        fig.add_vline(x=t_end, line_dash="dash", line_color="steelblue", line_width=1.5, annotation_text="Burn end")
-        fig.add_trace(
-            go.Scatter(x=[], y=[], name="Burn time", mode="markers", marker=dict(size=0, opacity=0), showlegend=True),
-        )
 
-    fig.update_layout(
-        xaxis_title="Time (s)",
-        yaxis_title=yaxis_title,
-        legend_title="Metric",
-        showlegend=True,
-        xaxis=dict(tickformat=".3f", type="linear"),
-    )
+    _xaxis = dict(tickformat=".3f", type="linear")
+    if not valid_metrics and show_burn_time:
+        fig.update_layout(
+            xaxis_title="Time (s)",
+            yaxis=dict(visible=False, title=""),
+            showlegend=False,
+            xaxis={**_xaxis, "range": [t_min_plot, t_max_plot]},
+        )
+    else:
+        fig.update_layout(
+            xaxis_title="Time (s)",
+            yaxis_title=yaxis_title,
+            legend_title="Metric",
+            showlegend=True,
+            xaxis=_xaxis,
+        )
     return fig, fig.to_dict()
 
 

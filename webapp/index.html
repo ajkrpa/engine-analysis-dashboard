@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Rocket Dashboard (HTML + JS)</title>
+  <title>Data Analysis Dashboard</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.css" crossorigin="anonymous">
 </head>
 <body>
   <div class="container-fluid dashboard-theme-container py-3">
-    <h1 class="text-center mb-4">Dashboard</h1>
+    <h1 class="text-center mb-4">Data Analysis Dashboard</h1>
 
     <div class="card mb-4 p-3">
       <h5>Upload data files</h5>
@@ -88,8 +88,10 @@
 
     <div class="row g-2 mb-3">
       <div class="col-auto info-box">Detected burn time (s): <span id="analysis-burn-time-display">—</span></div>
-      <div class="col-auto info-box">Fuel venturi active time (s): <span id="analysis-fuel-flow-time-display">—</span></div>
-      <div class="col-auto info-box">Ox venturi active time (s): <span id="analysis-ox-flow-time-display">—</span></div>
+      <div class="col-auto info-box">Average total thrust, burn (lbf): <span id="analysis-avg-thrust-burn-display">—</span></div>
+      <div class="col-auto info-box">Average chamber pressure, burn (psi): <span id="analysis-avg-chamber-p-burn-display">—</span></div>
+      <div class="col-auto info-box">Average fuel mass flow (kg/s): <span id="analysis-fuel-flow-time-display">—</span></div>
+      <div class="col-auto info-box">Average ox mass flow (kg/s): <span id="analysis-ox-flow-time-display">—</span></div>
     </div>
 
     <div class="row g-3">
@@ -133,40 +135,46 @@
                 <button class="nav-link py-2" id="perf-tab-venturi" data-bs-toggle="tab" data-bs-target="#perf-pane-venturi" type="button" role="tab" aria-controls="perf-pane-venturi" aria-selected="false">Venturi</button>
               </li>
               <li class="nav-item" role="presentation">
+                <button class="nav-link py-2" id="perf-tab-tanks" data-bs-toggle="tab" data-bs-target="#perf-pane-tanks" type="button" role="tab" aria-controls="perf-pane-tanks" aria-selected="false">Tanks</button>
+              </li>
+              <li class="nav-item" role="presentation">
                 <button class="nav-link py-2" id="perf-tab-metrics" data-bs-toggle="tab" data-bs-target="#perf-pane-metrics" type="button" role="tab" aria-controls="perf-pane-metrics" aria-selected="false">Plot metrics</button>
               </li>
             </ul>
           </div>
           <div class="tab-content card-body p-3 pt-2" id="perf-tab-panels">
             <div class="tab-pane fade show active" id="perf-pane-inputs" role="tabpanel" aria-labelledby="perf-tab-inputs" tabindex="0">
-              <label class="small">A* (m²)</label>
+              <label class="small">Throat Area (m²)</label>
               <input id="input-throat-area" type="number" class="form-control mb-2" step="any">
               <label class="small">Thrust channels (lbf)</label>
               <details id="thrust-channels-picker" class="mb-2">
                 <summary id="thrust-channels-summary" class="form-select">Select thrust channels</summary>
                 <div id="thrust-channels-checklist" class="scroll-list mt-2"></div>
               </details>
-              <div class="small text-muted mb-2">Select multiple channels from the dropdown. Selected channels are summed into Total thrust.</div>
               <label class="small">Chamber pressure channel (psi)</label>
               <select id="chamber-pressure-select" class="form-select mb-2"></select>
-              <label class="small">Fuel tank weight channel (lbf)</label>
-              <select id="fuel-weight-select" class="form-select mb-2"></select>
-              <label class="small">Oxidizer tank weight channel (lbf)</label>
-              <select id="ox-weight-select" class="form-select mb-2"></select>
-              <p class="small text-muted mb-0">I<sub>sp</sub> and C* use <strong>total mass flow = fuel venturi ṁ + ox venturi ṁ</strong> (kg/s) from the Venturi tab. Tank weights support O/F when venturi is missing for a side.</p>
+              <label class="small">Mass flow rates</label>
+              <select id="analysis-mass-flow-source" class="form-select mb-2" aria-label="Mass flow source for Isp, C*, and which mdot series apply">
+                <option value="venturis">Venturis</option>
+                <option value="tank-weights">Tank Weights</option>
+              </select>
               <div id="analysis-calculate-hint" class="small text-warning my-2" role="status"></div>
               <button id="analysis-calculate-button" class="btn btn-primary w-100 mt-2">Calculate</button>
             </div>
             <div class="tab-pane fade" id="perf-pane-venturi" role="tabpanel" aria-labelledby="perf-tab-venturi" tabindex="0">
               <p class="small text-muted mb-2">Fuel and oxidizer are independent: each mass-flow uses only that stream’s density, pressure channels, C<sub>d</sub>A, and β.</p>
-              <label class="small">Fuel venturi — density rho (kg/m³)</label>
+              <label class="small">Fuel density (kg/m³)</label>
               <input id="venturi-fuel-rho-constant" type="number" class="form-control mb-2" step="any" aria-label="Fuel venturi fluid density in kg per cubic meter">
-              <label class="small">Oxidizer venturi — density rho (kg/m³)</label>
+              <label class="small">Oxidizer density (kg/m³)</label>
               <input id="venturi-ox-rho-constant" type="number" class="form-control mb-2" step="any" aria-label="Oxidizer venturi fluid density in kg per cubic meter">
               <label class="small">Fuel venturi — inlet / throat (psi)</label>
               <div class="row g-1 mb-2">
                 <div class="col-6"><select id="venturi-fuel-inlet-select" class="form-select form-select-sm"></select></div>
                 <div class="col-6"><select id="venturi-fuel-throat-select" class="form-select form-select-sm"></select></div>
+              </div>
+              <div class="row g-1 mb-0 small instrument-label">
+                <div class="col-6">CdA</div>
+                <div class="col-6">β</div>
               </div>
               <div class="row g-1 mb-2">
                 <div class="col-6"><input id="venturi-fuel-cda" type="number" step="any" class="form-control form-control-sm" placeholder="Fuel C_d A (e.g. 1e-5)" title="Fuel C_dA (m²); paired with fuel inlet/throat, fuel density, and fuel β only"></div>
@@ -177,15 +185,54 @@
                 <div class="col-6"><select id="venturi-ox-inlet-select" class="form-select form-select-sm"></select></div>
                 <div class="col-6"><select id="venturi-ox-throat-select" class="form-select form-select-sm"></select></div>
               </div>
+              <div class="row g-1 mb-0 small instrument-label">
+                <div class="col-6">CdA</div>
+                <div class="col-6">β</div>
+              </div>
               <div class="row g-1">
                 <div class="col-6"><input id="venturi-ox-cda" type="number" step="any" class="form-control form-control-sm" placeholder="Ox C_d A (e.g. 1e-5)" title="Ox C_dA (m²); paired with ox inlet/throat, ox density, and ox β only"></div>
                 <div class="col-6"><input id="venturi-ox-beta" type="number" class="form-control form-control-sm" title="β = d_throat / d_inlet (diameters, not area); ox line only" placeholder="β = d_t/d_i"></div>
               </div>
             </div>
+            <div class="tab-pane fade" id="perf-pane-tanks" role="tabpanel" aria-labelledby="perf-tab-tanks" tabindex="0">
+              <label class="small">Fuel tank weight channel (lbf)</label>
+              <select id="fuel-weight-select" class="form-select mb-2"></select>
+              <label class="small">Oxidizer tank weight channel (lbf)</label>
+              <select id="ox-weight-select" class="form-select mb-2"></select>
+            </div>
             <div class="tab-pane fade" id="perf-pane-metrics" role="tabpanel" aria-labelledby="perf-tab-metrics" tabindex="0">
+              <button type="button" id="clear-plot-metrics-button" class="btn btn-sm btn-outline-light mb-2">Clear selection</button>
               <div id="analysis-metrics-checklist"></div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade modal-hotfire" id="save-plot-image-modal" tabindex="-1" aria-labelledby="save-plot-modal-title" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title text-white" id="save-plot-modal-title">Save image</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body text-white">
+          <label for="save-plot-filename" class="form-label small">File name (without extension)</label>
+          <input type="text" class="form-control input-hotfire" id="save-plot-filename" placeholder="e.g. timeseries" autocomplete="off">
+          <label for="save-plot-graph-title" class="form-label small mt-3">Graph title (optional)</label>
+          <input type="text" class="form-control input-hotfire" id="save-plot-graph-title" placeholder="Leave empty to keep the current title" autocomplete="off">
+          <label for="save-plot-format" class="form-label small mt-3">File format</label>
+          <select class="form-select input-hotfire" id="save-plot-format">
+            <option value="png" selected>PNG</option>
+            <option value="jpeg">JPEG</option>
+            <option value="webp">WebP</option>
+            <option value="svg">SVG (vector)</option>
+          </select>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary btn-sm" id="save-plot-confirm-btn">Download</button>
         </div>
       </div>
     </div>
@@ -196,5 +243,6 @@
   <script src="https://cdn.jsdelivr.net/npm/nouislider@15.7.1/dist/nouislider.min.js" crossorigin="anonymous"></script>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
   <script src="app.js"></script>
+  <script src="app-events.js"></script>
 </body>
 </html>

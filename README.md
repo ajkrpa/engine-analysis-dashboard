@@ -24,15 +24,15 @@ The main version runs **in your web browser**. You do **not** need to install an
 
 ---
 
-## Main areas of the screen
+## Main Dashboard Sections
 
-### 1. Timeseries (first big plot)
+### 1. Timeseries Plot
 
 - **Channels:** Check the signals you want on the **timeseries** plot. Use **Clear channels** to uncheck all.
 - **Analysis (regression / burn):** Optional overlays on the timeseries as described on the card.
 - **Time controls:** After data is loaded, use the **slider** or **Start / End** boxes to focus on part of the run. **Reset** sets the window back to the full time range. **Save timeseries image** downloads a PNG of the current plot.
 
-### 2. Performance analysis (second section)
+### 2. Performance Analysis Plot
 
 At the top you will see summary numbers (detected **burn** time, and **fuel/ox venturi active** times derived from the venturi mass-flow series) **after you run Calculate** (below).
 
@@ -46,6 +46,143 @@ At the top you will see summary numbers (detected **burn** time, and **fuel/ox v
 - **Plot Metrics:** Check which curves you want on the performance plot (`Isp`, `C*`, venturi mass flow, `O/F`, burn time, etc.).
 - Click **Calculate** to refresh the performance plot and the summary numbers. If something is wrong with inputs, a short hint may appear under the button.
 - **Save analysis image** downloads a PNG of the performance plot.
+
+---
+
+## How calculations work (inputs -> equations -> outputs)
+
+### Venturi mass flow rate
+
+**Equation**
+
+$$
+\dot{m} = C_d A \sqrt{\frac{2\,\Delta P\,\rho}{1-\beta^4}}
+$$
+
+**Variables**
+
+- $\dot{m}$: mass flow rate, in $\mathrm{kg/s}$
+- $C_dA$: effective discharge-area term, in $\mathrm{m^2}$
+- $\Delta P$: pressure drop between venturi inlet and throat, in $\mathrm{Pa}$
+- $\rho$: fluid density, in $\mathrm{kg/m^3}$
+- $\beta$: venturi diameter ratio, $\beta = d_{\mathrm{throat}}/d_{\mathrm{inlet}}$ (dimensionless)
+
+**User input**
+
+1. Upload CSV file(s)
+2. Select venturi inlet and throat pressure channels for fuel and/or oxidizer
+3. Enter `rho`, `C_d A`, and `beta` for each line
+
+**Output**
+
+1. `Venturi fuel mdot (kg/s)` and `Venturi ox mdot (kg/s)` are calculated
+2. These mass-flow rates can be plotted in the analysis graph
+3. These mass-flow rates are used to calculate `Isp`, `C*`, and `O/F`
+
+### Tank-weight-derived mass flow rate
+
+**Equation**
+
+$$
+\text{slope} = \frac{dW}{dt}
+$$
+
+$$
+\dot{m}_{\mathrm{kg/s}} = \left|\frac{\text{slope}}{g_{0,\mathrm{ft/s^2}}}\right| \cdot \mathrm{lbm\_to\_kg}
+$$
+
+**Variables**
+
+- $W$: tank weight, in $\mathrm{lbf}$
+- $\dfrac{dW}{dt}$: tank-weight slope, in $\mathrm{lbf/s}$
+- $g_{0,\mathrm{ft/s^2}}$: standard gravity conversion constant, $32.174\ \mathrm{ft/s^2}$
+- $\mathrm{lbm\_to\_kg}$: pound-mass to kilogram conversion factor, $0.453592$
+- $\dot{m}_{\mathrm{kg/s}}$: mass flow rate, in $\mathrm{kg/s}$
+
+**User input**
+
+1. Upload CSV file(s)
+2. Select fuel and oxidizer tank weight channels
+
+**Output**
+
+1. Tank-based fuel/ox mass flow estimates are calculated
+2. They are used as fallback/support flow information (especially for `O/F`)
+
+### Total thrust
+
+**Equation**
+
+$$
+F_{\mathrm{total,lbf}}(t)=\sum_i F_{i,\mathrm{lbf}}(t)
+$$
+
+**Variables**
+
+- $F_{i,\mathrm{lbf}}$: thrust from the $i$th selected channel, in $\mathrm{lbf}$
+- $F_{\mathrm{total,lbf}}$: summed total thrust at each time sample, in $\mathrm{lbf}$
+
+**User input**
+
+1. Upload CSV file(s)
+2. Select one or more thrust channels
+
+**Output**
+
+1. `Total thrust (lbf)` is calculated as a time series
+2. Total thrust can be plotted
+3. Total thrust is used in `Isp` and `Cf` calculations
+
+### Performance metrics (`Isp`, `C*`, `Cf`, `O/F`)
+
+**Equations**
+
+$$
+F_{N}=F_{\mathrm{lbf}}\cdot 4.44822
+$$
+
+$$
+P_{c,\mathrm{Pa}}=P_{c,\mathrm{psi}}\cdot 6894.76
+$$
+
+$$
+I_{sp}=\frac{F_N}{\dot{m}_{\mathrm{total}}\,g_{0,\mathrm{m/s^2}}}
+$$
+
+$$
+C^*=\frac{P_{c,\mathrm{Pa}}\,A^*}{\dot{m}_{\mathrm{total}}}
+$$
+
+$$
+C_f=\frac{F_N}{P_{c,\mathrm{Pa}}\,A^*}
+$$
+
+$$
+\frac{O}{F}=\frac{\dot{m}_{\mathrm{ox}}}{\dot{m}_{\mathrm{fuel}}}
+$$
+
+**Variables**
+
+- $F_{\mathrm{lbf}}$: thrust in pounds-force ($\mathrm{lbf}$)
+- $F_N$: thrust in Newtons ($\mathrm{N}$)
+- $P_{c,\mathrm{psi}}$: chamber pressure in $\mathrm{psi}$
+- $P_{c,\mathrm{Pa}}$: chamber pressure in $\mathrm{Pa}$
+- $A^*$: nozzle throat area, in $\mathrm{m^2}$
+- $\dot{m}_{\mathrm{total}}$: total mass flow rate, in $\mathrm{kg/s}$
+- $g_{0,\mathrm{m/s^2}}$: standard gravity, $9.80665\ \mathrm{m/s^2}$
+- $\dot{m}_{\mathrm{ox}}$, $\dot{m}_{\mathrm{fuel}}$: oxidizer and fuel mass flow rates, in $\mathrm{kg/s}$
+
+**User input**
+
+1. Upload CSV file(s)
+2. Select thrust channel(s), chamber pressure channel, and flow source inputs
+3. Enter throat area `A*`
+
+**Output**
+
+1. `Isp`, `C*`, `Cf`, and `O/F` are calculated
+2. Metrics are available in Plot Metrics for graphing
+3. Burn-time summaries and burn-window averages are shown above the analysis plot
 
 ---
 
@@ -89,10 +226,11 @@ Then open **http://localhost:8080** in your browser.
 
 ## For developers
 
-This repository also contains a **Plotly Dash** version of the UI (`app.py`, `dataApp.py`) and shared Python modules under `core/`. To run Dash locally:
+This repository also contains a **Plotly Dash** version of the UI under `python_template/` (`python_template/app.py`, `python_template/dataApp.py`) and shared Python modules under `python_template/core/`. To run Dash locally:
 
 ```bash
 pip install -r requirements.txt
+cd python_template
 python app.py
 ```
 
@@ -106,7 +244,7 @@ python app.py
 
 If your service already has `pip install -r requirements.txt` in **Build command**, open **Settings → Build & deploy**, change **Build command** to `true`, save, and **Clear build cache + deploy** (or **Manual deploy**). If the UI does not let you (wrong service type), create a new **Static Site** with the settings above, or use **Blueprint** and connect `render.yaml` from this repo.
 
-**Repository layout (short):** `webapp/` — static dashboard; `app.py` / `dataApp.py` — Dash; `core/` — data and analysis logic; `data/` — sample CSV for Dash default load.
+**Repository layout (short):** `webapp/` — static dashboard; `python_template/` — Dash app and Python analysis modules; `data/` — sample CSV for Dash default load.
 
 ---
 
